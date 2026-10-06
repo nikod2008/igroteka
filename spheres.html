@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Соедини шары</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: linear-gradient(135deg, #050510 0%, #1a1a3e 50%, #050510 100%);
+    min-height: 100vh; display: flex; justify-content: center; align-items: center;
+    padding: 12px; overflow: hidden;
+}
+.game-container {
+    background: rgba(20,20,40,0.95); backdrop-filter: blur(16px);
+    border-radius: 20px; padding: 20px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6), inset 0 0 40px rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.06);
+    max-width: 540px; width: 100%; position: relative;
+}
+h1 { color:#fff; text-align:center; margin-bottom:10px; font-size:24px; text-shadow:0 2px 12px rgba(0,0,0,0.8); letter-spacing:1px; }
+.stats { display:flex; justify-content:space-between; margin-bottom:14px; color:rgba(255,255,255,0.75); font-size:15px; padding:0 6px; }
+.stats span { font-weight:bold; color:#ffd43b; font-size:17px; }
+canvas {
+    border-radius:16px; display:block; margin:0 auto; touch-action:none;
+    background:radial-gradient(circle at 50% 50%, rgba(10,10,20,0.4) 0%, rgba(0,0,0,0) 70%);
+    box-shadow: inset 0 0 50px rgba(0,0,0,0.7), 0 12px 30px rgba(0,0,0,0.5);
+    cursor:crosshair; width:100%; max-width:480px; aspect-ratio:1;
+}
+.controls { margin-top:16px; display:flex; flex-wrap:wrap; justify-content:center; gap:10px; }
+button {
+    padding:13px 20px; font-size:15px; border:none; border-radius:12px;
+    cursor:pointer; font-weight:700; transition:all 0.2s cubic-bezier(0.2,0.8,0.2,1);
+    color:#fff; min-width:110px; position:relative; overflow:hidden;
+}
+button:hover:not(.disabled) { transform:translateY(-3px) scale(1.02); filter:brightness(1.15); box-shadow:0 8px 24px rgba(0,0,0,0.4); }
+button:active:not(.disabled) { transform:translateY(1px) scale(0.98); }
+button.disabled { opacity:0.35; cursor:not-allowed; filter:grayscale(1); transform:none; }
+.btn-undo { background:linear-gradient(135deg, #8b7355, #6b5340); }
+.btn-reset { background:linear-gradient(135deg, #a05050, #804040); }
+.btn-next { background:linear-gradient(135deg, #4a7a5a, #3a6a4a); }
+.message { text-align:center; margin-top:12px; min-height:22px; font-weight:700; font-size:15px; line-height:1.4; }
+.message.success { color:#51cf66; text-shadow:0 0 10px rgba(81,207,102,0.5); }
+.message.error { color:#ff6b6b; text-shadow:0 0 10px rgba(255,107,107,0.5); }
+.message.info { color:#4dabf7; }
+.instructions { text-align:center; margin-top:12px; font-size:13px; color:rgba(255,255,255,0.65); line-height:1.5; background:rgba(0,0,0,0.2); padding:8px; border-radius:10px; }
+.loader { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(5,5,15,0.92); display:flex; flex-direction:column; justify-content:center; align-items:center; z-index:200; color:#fff; font-size:18px; }
+.loader.hidden { display:none; }
+.spinner { width:56px; height:56px; border:5px solid rgba(255,255,255,0.15); border-top-color:#4dabf7; border-radius:50%; animation:spin 1s linear infinite; margin-bottom:20px; }
+@keyframes spin { to { transform:rotate(360deg); } }
+.win-screen { position:absolute; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.85); display:none; flex-direction:column; justify-content:center; align-items:center; z-index:150; border-radius:20px; }
+.win-icon { font-size:60px; margin-bottom:12px; animation:bounce 0.6s ease-in-out infinite alternate; }
+@keyframes bounce { from { transform:translateY(0); } to { transform:translateY(-8px); } }
+.win-text { color:#fff; font-size:28px; text-align:center; margin-bottom:8px; text-shadow:0 2px 10px rgba(0,0,0,0.8); }
+.win-sub { color:rgba(255,255,255,0.7); font-size:16px; margin-bottom:20px; }
+</style>
+</head>
+<body>
+<div class="loader hidden" id="loader">
+    <div class="spinner"></div>
+    <div>Генерируем уровень...</div>
+</div>
+<div class="game-container">
+    <h1>🎈 Соедини шары</h1>
+    <div class="stats">
+        <div>Уровень: <span id="level">1</span></div>
+        <div>Пары: <span id="pairs">0</span>/<span id="totalPairs">0</span></div>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+    <div class="controls">
+        <button class="btn-undo" onclick="undoLast()">↩ Отменить</button>
+        <button class="btn-reset" onclick="resetLevel()">🔄 Сброс</button>
+        <button class="btn-next disabled" id="btnNext" onclick="tryNext()">➡️ Дальше</button>
+    </div>
+    <div class="message" id="message"></div>
+    <div class="instructions">Соедините шары одного цвета внутри круга. Линии не должны пересекать границу и друг друга!</div>
+    <div class="win-screen" id="winScreen">
+        <div class="win-icon">🎉</div>
+        <div class="win-text">Победа!</div>
+        <div class="win-sub">Все шары соединены</div>
+        <button class="btn-next" onclick="nextLevel()">Следующий уровень</button>
+    </div>
+</div>
+<script>
+// ===================== ОСНОВНЫЕ ПЕРЕМЕННЫЕ =====================
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const messageEl = document.getElementById('message');
+const btnNext = document.getElementById('btnNext');
+const loader = document.getElementById('loader');
+const winScreen = document.getElementById('winScreen');
+
+let W = 480, H = 480;
+canvas.width = W; canvas.height = H;
+
+let currentLevel = 1;
+let balls = [];
+let paths = {};
+let currentPath = null;
+let isDrawing = false;
+let completedPairs = 0;
+let totalPairs = 0;
+let pathHistory = [];
+let boundary = null;
+let levelWon = false;
+
+const colors = ['#ff4757','#2ed573','#1e90ff','#ffa502','#a55eea','#ff6348','#00d2d3','#ff9ff3'];
+
+// ===================== ГЕНЕРАЦИЯ ШАРОВ =====================
+
+function dist(a, b) { return Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2); }
+
+function generateRandomBalls(numPairs, boundary) {
+    const minDist = 62; // минимальное расстояние между центрами шаров
+    const margin = 16;  // отступ от границы круга
+    const maxAttempts = 2000;
+    let result = null;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const placed = [];
+        let ok = true;
+
+        for (let i = 0; i < numPairs * 2; i++) {
+            let pos = null;
+            for (let t = 0; t < 100; t++) {
+                // случайная точка внутри круга
+                const angle = Math.random() * Math.PI * 2;
+                const r = Math.sqrt(Math.random()) * (boundary.r - margin);
+                const x = boundary.x + r * Math.cos(angle);
+                const y = boundary.y + r * Math.sin(angle);
+                let good = true;
+                for (const p of placed) {
+                    if (dist({x,y}, p) < minDist) { good = false; break; }
+                }
+                if (good) { pos = {x, y}; break; }
+            }
+            if (!pos) { ok = false; break; }
+            placed.push(pos);
+        }
+
+        if (!ok) continue;
+
+        // перемешиваем шары, чтобы пары не стояли рядом
+        const shuffled = placed.slice();
+        for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+
+        const newBalls = [];
+        for (let i = 0; i < numPairs; i++) {
+            newBalls.push({x: shuffled[i*2].x, y: shuffled[i*2].y, color: i});
+            newBalls.push({x: shuffled[i*2+1].x, y: shuffled[i*2+1].y, color: i});
+        }
+
+        // проверяем решаемость
+        if (solveLevel(newBalls, boundary)) {
+            result = newBalls;
+            break;
+        }
+    }
+    return result;
+}
+
+// ===================== ГЕНЕРАЦИЯ ПУТЕЙ ДЛЯ ПРОВЕРКИ =====================
+
+function generateStraightPath(p1, p2, numPoints) {
+    const path = [];
+    for (let i = 0; i <= numPoints; i++) {
+        const t = i / numPoints;
+        path.push({x: p1.x + (p2.x-p1.x)*t, y: p1.y + (p2.y-p1.y)*t});
+    }
+    return path;
+}
+
+function generateArcPath(p1, p2, radius, clockwise, numPoints) {
+    const mx = (p1.x+p2.x)/2, my = (p1.y+p2.y)/2;
+    const dx = p2.x-p1.x, dy = p2.y-p1.y;
+    const d = Math.sqrt(dx*dx + dy*dy);
+    if (d < 0.001) return null;
+    if (d > 2*radius) return null;
+    const h = Math.sqrt(Math.max(0, radius*radius - (d/2)*(d/2)));
+    const perpX = -dy/d, perpY = dx/d;
+    const cx = mx + (clockwise ? 1 : -1) * h * perpX;
+    const cy = my + (clockwise ? 1 : -1) * h * perpY;
+    const a1 = Math.atan2(p1.y-cy, p1.x-cx);
+    const a2 = Math.atan2(p2.y-cy, p2.x-cx);
+    let ad = a2 - a1;
+    if (clockwise) { while (ad < 0) ad += Math.PI*2; }
+    else { while (ad > 0) ad -= Math.PI*2; }
+    const path = [];
+    for (let i = 0; i <= numPoints; i++) {
+        const t = i / numPoints;
+        const a = a1 + ad * t;
+        path.push({x: cx + radius*Math.cos(a), y: cy + radius*Math.sin(a)});
+    }
+    return path;
+}
+
+function isPathInside(path, boundary) {
+    for (const p of path) {
+        if (dist(p, boundary) > boundary.r - 6) return false;
+    }
+    return true;
+}
+
+function linesIntersect(p1, p2, p3, p4) {
+    const d1x=p2.x-p1.x, d1y=p2.y-p1.y;
+    const d2x=p4.x-p3.x, d2y=p4.y-p3.y;
+    const cross = d1x*d2y - d1y*d2x;
+    if (Math.abs(cross) < 0.001) return false;
+    const t = ((p3.x-p1.x)*d2y - (p3.y-p1.y)*d2x) / cross;
+    const u = ((p3.x-p1.x)*d1y - (p3.y-p1.y)*d1x) / cross;
+    return t > 0.01 && t < 0.99 && u > 0.01 && u < 0.99;
+}
+
+function pathsIntersect(pa, pb) {
+    for (let i = 0; i < pa.length-1; i++) {
+        for (let j = 0; j < pb.length-1; j++) {
+            if (linesIntersect(pa[i], pa[i+1], pb[j], pb[j+1])) return true;
+        }
+    }
+    return false;
+}
+
+function generateCandidates(p1, p2, boundary) {
+    const cands = [];
+    const straight = generateStraightPath(p1, p2, 24);
+    if (isPathInside(straight, boundary)) cands.push(straight);
+    for (let r = 0.3; r <= 1.8; r += 0.12) {
+        const radius = boundary.r * r;
+        for (const cw of [true, false]) {
+            const arc = generateArcPath(p1, p2, radius, cw, 30);
+            if (arc && isPathInside(arc, boundary)) cands.push(arc);
+        }
+    }
+    return cands;
+}
+
+function solveLevel(allBalls, boundary) {
+    const numPairs = allBalls.length / 2;
+    const pairs = [];
+    for (let i = 0; i < numPairs; i++) {
+        const pb = allBalls.filter(b => b.color === i);
+        if (pb.length !== 2) return null;
+        pairs.push([pb[0], pb[1]]);
+    }
+    const candsPerPair = pairs.map(([p1,p2]) => generateCandidates(p1, p2, boundary));
+
+    function backtrack(idx, selected) {
+        if (idx === numPairs) return selected.slice();
+        for (const cand of candsPerPair[idx]) {
+            let bad = false;
+            for (const sel of selected) {
+                if (pathsIntersect(cand, sel)) { bad = true; break; }
+            }
+            if (!bad) {
+                selected.push(cand);
+                const res = backtrack(idx+1, selected);
+                if (res) return res;
+                selected.pop();
+            }
+        }
+        return null;
+    }
+    return backtrack(0, []);
+}
+
+// ===================== ИНИЦИАЛИЗАЦИЯ УРОВНЯ =====================
+
+function getNumPairsForLevel(level) {
+    if (level <= 2) return 2;
+    if (level <= 4) return 3;
+    if (level <= 6) return 4;
+    if (level <= 9) return 5;
+    return Math.min(6, 5 + Math.floor((level - 9) / 3));
+}
+
+async function initLevel(level) {
+    loader.classList.remove('hidden');
+    messageEl.textContent = '';
+    messageEl.className = 'message';
+    await new Promise(r => setTimeout(r, 60));
+
+    const numPairs = getNumPairsForLevel(level);
+    boundary = {x: 240, y: 240, r: 200};
+
+    let finalBalls = null;
+
+    // Пытаемся сгенерировать решаемый уровень
+    for (let attempt = 0; attempt < 50; attempt++) {
+        finalBalls = generateRandomBalls(numPairs, boundary);
+        if (finalBalls) break;
+    }
+
+    // Запасной вариант: чуть увеличиваем минимальное расстояние и пробуем ещё
+    if (!finalBalls) {
+        boundary.r = 210;
+        for (let attempt = 0; attempt < 50; attempt++) {
+            finalBalls = generateRandomBalls(numPairs, boundary);
+            if (finalBalls) break;
+        }
+    }
+
+    if (!finalBalls) {
+        // Экстренный fallback — простой уровень с 2 парами
+        finalBalls = [
+            {x: 240, y: 80, color: 0}, {x: 240, y: 400, color: 0},
+            {x: 120, y: 240, color: 1}, {x: 360, y: 240, color: 1}
+        ];
+    }
+
+    balls = finalBalls;
+    paths = {};
+    currentPath = null;
+    isDrawing = false;
+    completedPairs = 0;
+    totalPairs = balls.length / 2;
+    pathHistory = [];
+    levelWon = false;
+
+    document.getElementById('level').textContent = level;
+    document.getElementById('totalPairs').textContent = totalPairs;
+    updatePairsCount();
+    updateNextButton();
+    winScreen.style.display = 'none';
+    messageEl.textContent = '';
+    messageEl.className = 'message';
+
+    loader.classList.add('hidden');
+    draw();
+}
+
+function updateNextButton() {
+    if (levelWon) btnNext.classList.remove('disabled');
+    else btnNext.classList.add('disabled');
+}
+
+// ===================== ОТРИСОВКА =====================
+
+function lightenColor(hex, percent) {
+    const num = parseInt(hex.replace('#',''), 16);
+    const amt = Math.round(2.55 * percent);
+    return `rgb(${Math.min(255,(num>>16)+amt)},${Math.min(255,((num>>8)&0xFF)+amt)},${Math.min(255,(num&0xFF)+amt)})`;
+}
+function darkenColor(hex, percent) {
+    const num = parseInt(hex.replace('#',''), 16);
+    const amt = Math.round(2.55 * percent);
+    return `rgb(${Math.max(0,(num>>16)-amt)},${Math.max(0,((num>>8)&0xFF)-amt)},${Math.max(0,(num&0xFF)-amt)})`;
+}
+
+function drawBall(ball, highlight) {
+    const r = 26;
+    const color = colors[ball.color];
+
+    // тень
+    ctx.beginPath();
+    ctx.arc(ball.x + 3, ball.y + 5, r, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.fill();
+
+    // тело шара
+    const grad = ctx.createRadialGradient(ball.x-8, ball.y-10, 2, ball.x, ball.y, r);
+    grad.addColorStop(0, lightenColor(color, 70));
+    grad.addColorStop(0.35, lightenColor(color, 25));
+    grad.addColorStop(0.7, color);
+    grad.addColorStop(1, darkenColor(color, 45));
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, r, 0, Math.PI*2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // блик
+    ctx.beginPath();
+    ctx.ellipse(ball.x-5, ball.y-8, 8, 5, -Math.PI/4, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(ball.x-7, ball.y-10, 2.5, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.fill();
+
+    // обводка
+    ctx.strokeStyle = highlight ? '#fff' : darkenColor(color, 55);
+    ctx.lineWidth = highlight ? 3 : 1.5;
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, r, 0, Math.PI*2);
+    ctx.stroke();
+
+    // хвостик шарика
+    ctx.beginPath();
+    ctx.moveTo(ball.x-2, ball.y+r-1);
+    ctx.lineTo(ball.x-4, ball.y+r+9);
+    ctx.lineTo(ball.x+2, ball.y+r+9);
+    ctx.lineTo(ball.x+2, ball.y+r-1);
+    ctx.closePath();
+    ctx.fillStyle = darkenColor(color, 35);
+    ctx.fill();
+}
+
+function drawBoundary() {
+    if (!boundary) return;
+    // мягкое свечение
+    ctx.beginPath();
+    ctx.arc(boundary.x, boundary.y, boundary.r, 0, Math.PI*2);
+    ctx.strokeStyle = 'rgba(100,180,255,0.15)';
+    ctx.lineWidth = 28;
+    ctx.stroke();
+    // основная линия
+    ctx.beginPath();
+    ctx.arc(boundary.x, boundary.y, boundary.r, 0, Math.PI*2);
+    ctx.strokeStyle = '#4dabf7';
+    ctx.lineWidth = 6;
+    ctx.stroke();
+    // внутренний блик
+    ctx.beginPath();
+    ctx.arc(boundary.x, boundary.y, boundary.r-2, 0, Math.PI*2);
+    ctx.strokeStyle = 'rgba(200,230,255,0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+}
+
+function drawPath(path, alpha, width) {
+    if (!path || path.points.length < 2) return;
+    const color = colors[path.color];
+
+    // тёмная обводка
+    ctx.strokeStyle = darkenColor(color, 35);
+    ctx.lineWidth = width + 5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.globalAlpha = alpha * 0.5;
+    ctx.beginPath();
+    ctx.moveTo(path.points[0].x, path.points[0].y);
+    for (let i = 1; i < path.points.length; i++) {
+        const p0 = path.points[i-1], p1 = path.points[i];
+        ctx.quadraticCurveTo(p0.x, p0.y, (p0.x+p1.x)/2, (p0.y+p1.y)/2);
+    }
+    ctx.lineTo(path.points[path.points.length-1].x, path.points[path.points.length-1].y);
+    ctx.stroke();
+
+    // основной цвет
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    ctx.moveTo(path.points[0].x, path.points[0].y);
+    for (let i = 1; i < path.points.length; i++) {
+        const p0 = path.points[i-1], p1 = path.points[i];
+        ctx.quadraticCurveTo(p0.x, p0.y, (p0.x+p1.x)/2, (p0.y+p1.y)/2);
+    }
+    ctx.lineTo(path.points[path.points.length-1].x, path.points[path.points.length-1].y);
+    ctx.stroke();
+
+    // светлый блик сверху
+    ctx.strokeStyle = lightenColor(color, 45);
+    ctx.lineWidth = 2.5;
+    ctx.globalAlpha = alpha * 0.55;
+    ctx.beginPath();
+    ctx.moveTo(path.points[0].x, path.points[0].y - 1.5);
+    for (let i = 1; i < path.points.length; i++) {
+        const p0 = path.points[i-1], p1 = path.points[i];
+        ctx.quadraticCurveTo(p0.x, p0.y - 1.5, (p0.x+p1.x)/2, (p0.y+p1.y)/2 - 1.5);
+    }
+    ctx.lineTo(path.points[path.points.length-1].x, path.points[path.points.length-1].y - 1.5);
+    ctx.stroke();
+
+    ctx.globalAlpha = 1.0;
+}
+
+function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    // фон
+    const bg = ctx.createRadialGradient(W/2, H/2, 40, W/2, H/2, W*0.7);
+    bg.addColorStop(0, '#1a1a3e');
+    bg.addColorStop(1, '#080812');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // сетка
+    ctx.strokeStyle = 'rgba(255,255,255,0.025)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < W; i += 40) {
+        ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, H); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(W, i); ctx.stroke();
+    }
+
+    drawBoundary();
+
+    for (const key in paths) drawPath(paths[key], 0.85, 12);
+    if (currentPath && currentPath.points.length > 1) drawPath(currentPath, 0.9, 14);
+
+    balls.forEach(ball => {
+        const isStart = currentPath && currentPath.points.length > 0 &&
+            Math.abs(ball.x - currentPath.points[0].x) < 30 &&
+            Math.abs(ball.y - currentPath.points[0].y) < 30;
+        drawBall(ball, isStart);
+    });
+}
+
+// ===================== ВЗАИМОДЕЙСТВИЕ =====================
+
+function getBallAt(x, y) {
+    return balls.find(ball => Math.sqrt((ball.x-x)**2 + (ball.y-y)**2) <= 30);
+}
+
+function getPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const sx = W / rect.width, sy = H / rect.height;
+    const cx = e.touches ? e.touches[0].clientX : e.clientX;
+    const cy = e.touches ? e.touches[0].clientY : e.clientY;
+    return {x: (cx - rect.left) * sx, y: (cy - rect.top) * sy};
+}
+
+function isInside(x, y) {
+    if (!boundary) return false;
+    return Math.sqrt((x-boundary.x)**2 + (y-boundary.y)**2) <= boundary.r;
+}
+
+function startDraw(e) {
+    e.preventDefault();
+    const pos = getPos(e);
+    const ball = getBallAt(pos.x, pos.y);
+    if (!ball) return;
+    // уже соединён?
+    const connected = Object.values(paths).some(p =>
+        p.points.some(pt => Math.abs(pt.x-ball.x) < 30 && Math.abs(pt.y-ball.y) < 30));
+    if (connected) return;
+    isDrawing = true;
+    currentPath = {color: ball.color, points: [{x: ball.x, y: ball.y}]};
+    draw();
+}
+
+function moveDraw(e) {
+    if (!isDrawing || !currentPath) return;
+    e.preventDefault();
+    const pos = getPos(e);
+    const last = currentPath.points[currentPath.points.length - 1];
+    if (Math.sqrt((pos.x-last.x)**2 + (pos.y-last.y)**2) < 8) return;
+    // не пересекаем чужой шар
+    const onOther = balls.some(b => {
+        return b.color !== currentPath.color &&
+            Math.sqrt((b.x-pos.x)**2 + (b.y-pos.y)**2) <= 26;
+    });
+    if (onOther) return;
+    if (!isInside(pos.x, pos.y)) return;
+    currentPath.points.push({x: pos.x, y: pos.y});
+    draw();
+}
+
+function endDraw(e) {
+    if (!isDrawing || !currentPath) return;
+    if (e) e.preventDefault();
+    const last = currentPath.points[currentPath.points.length - 1];
+    const endBall = getBallAt(last.x, last.y);
+
+    if (endBall && endBall.color === currentPath.color && currentPath.points.length > 2) {
+        const connected = Object.values(paths).some(p =>
+            p.points.some(pt => Math.abs(pt.x-endBall.x) < 30 && Math.abs(pt.y-endBall.y) < 30));
+        if (!connected) {
+            let intersect = false;
+            for (const key in paths) {
+                if (checkIntersection(currentPath.points, paths[key].points)) {
+                    intersect = true; break;
+                }
+            }
+            if (!intersect) {
+                paths[currentPath.color] = {color: currentPath.color, points: currentPath.points.slice()};
+                pathHistory.push(currentPath.color);
+                completedPairs++;
+                updatePairsCount();
+                if (completedPairs === totalPairs) {
+                    levelWon = true;
+                    updateNextButton();
+                    messageEl.textContent = '🎉 Победа! Все шары соединены!';
+                    messageEl.className = 'message success';
+                    setTimeout(() => { winScreen.style.display = 'flex'; }, 500);
+                }
+            } else {
+                messageEl.textContent = '❌ Линии пересекаются!';
+                messageEl.className = 'message error';
+                setTimeout(() => { messageEl.textContent = ''; messageEl.className = 'message'; }, 1500);
+            }
+        }
+    }
+    isDrawing = false;
+    currentPath = null;
+    draw();
+}
+
+function checkIntersection(p1, p2) {
+    for (let i = 0; i < p1.length-1; i++) {
+        for (let j = 0; j < p2.length-1; j++) {
+            if (linesIntersect(p1[i], p1[i+1], p2[j], p2[j+1])) return true;
+        }
+    }
+    return false;
+}
+
+canvas.addEventListener('mousedown', startDraw);
+canvas.addEventListener('mousemove', moveDraw);
+canvas.addEventListener('mouseup', endDraw);
+canvas.addEventListener('mouseleave', endDraw);
+canvas.addEventListener('touchstart', startDraw, {passive:false});
+canvas.addEventListener('touchmove', moveDraw, {passive:false});
+canvas.addEventListener('touchend', endDraw, {passive:false});
+
+// ===================== КНОПКИ =====================
+
+function updatePairsCount() {
+    document.getElementById('pairs').textContent = completedPairs;
+}
+
+function undoLast() {
+    if (pathHistory.length === 0) return;
+    const last = pathHistory.pop();
+    delete paths[last];
+    completedPairs--;
+    levelWon = false;
+    winScreen.style.display = 'none';
+    updatePairsCount();
+    updateNextButton();
+    messageEl.textContent = '';
+    draw();
+}
+
+function resetLevel() { initLevel(currentLevel); }
+
+function tryNext() {
+    if (!levelWon) {
+        messageEl.textContent = '⚠️ Сначала завершите уровень!';
+        messageEl.className = 'message error';
+        setTimeout(() => { messageEl.textContent = ''; messageEl.className = 'message'; }, 2000);
+        return;
+    }
+    nextLevel();
+}
+
+function nextLevel() {
+    currentLevel++;
+    initLevel(currentLevel);
+}
+
+// ===================== СТАРТ =====================
+initLevel(1);
+</script>
+</body>
+</html>
