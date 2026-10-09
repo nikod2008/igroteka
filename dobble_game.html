@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#f7f1e6">
+<title>«Доббль» — интерактив: почему всегда есть общий символ</title>
+<style>
+  :root{
+    --cream:#f7f1e6; --paper:#fffdf8; --ink:#2f2a24; --muted:#7b7163; --line:#e8ddc9;
+    --gold:#d9a520; --blue:#3f7fd6; --red:#d95550; --shadow:0 2px 10px rgba(90,70,40,.08);
+  }
+  html{-webkit-text-size-adjust:100%;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--cream);color:var(--ink);
+       font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif;line-height:1.5;}
+  .wrap{max-width:1100px;margin:0 auto;padding:22px 16px 60px;}
+  h1{font-family:Georgia,"Times New Roman",serif;font-size:clamp(21px,5.6vw,27px);margin:0 0 6px;color:#241f19;}
+  .sub{color:var(--muted);font-size:14.5px;margin:0 0 4px;}
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 4px;}
+  button{font:inherit;border:1px solid var(--line);background:var(--paper);border-radius:10px;
+         padding:8px 14px;cursor:pointer;box-shadow:var(--shadow);color:var(--ink);touch-action:manipulation;min-height:42px;}
+  button:hover{border-color:#cdbfa4;}
+  button.active{background:#f1e8d6;border-color:#c8b894;font-weight:600;}
+  .sep{flex:1;}
+  .status{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:10px 14px;
+          margin:12px 0;font-size:15px;min-height:46px;box-shadow:var(--shadow);}
+  .status b{color:#241f19;}
+  .note{color:var(--muted);font-size:13.5px;margin:8px 0 14px;}
+  /* ===== deck ===== */
+  .deck{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:10px;}
+  .card{background:var(--paper);border:2px solid var(--line);border-radius:14px;padding:10px 6px 6px;
+        cursor:pointer;box-shadow:var(--shadow);transition:border-color .15s, transform .1s;position:relative;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;}
+  .card:hover{transform:translateY(-2px);}
+  .card.sel{border-color:var(--blue);background:#f4f8ff;}
+  .card .num{position:absolute;top:4px;left:9px;font-size:11px;color:var(--muted);}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:2px 0;place-items:center;padding-top:8px;}
+  .sym{display:flex;flex-direction:column;align-items:center;line-height:1.05;cursor:inherit;-webkit-touch-callout:none;user-select:none;-webkit-user-select:none;touch-action:manipulation;}
+  .sym .e{font-size:21px;}
+  .sym .n{display:none;font-size:10px;color:var(--muted);}
+  body.nums .sym .n{display:block;}
+  .card.c3 .grid3 .e{font-size:30px;}
+  .sym.hit .e{filter:drop-shadow(0 0 6px var(--gold)) drop-shadow(0 0 10px var(--gold));}
+  .sym.hit{animation:pulse .7s infinite alternate;}
+  @keyframes pulse{from{transform:scale(1);}to{transform:scale(1.22);}}
+  /* ===== game ===== */
+  .score{font-size:14.5px;color:#4a4238;margin:10px 0;}
+  .score b{color:#241f19;}
+  .timer{font-family:Consolas,"Courier New",monospace;}
+  .gameboard{display:flex;gap:clamp(10px,2.5vw,26px);justify-content:center;align-items:center;margin:14px 0;flex-wrap:wrap;}
+  .gamecard{background:var(--paper);border:2px solid var(--line);border-radius:18px;
+            padding:12px;width:clamp(150px,43.5vw,232px);min-height:150px;box-shadow:var(--shadow);user-select:none;-webkit-user-select:none;}
+  .gamecard .grid3 .e{font-size:clamp(22px,7vw,30px);}
+  .gamecard .grid3{padding-top:2px;}
+  .gamecard .sym{cursor:pointer;border-radius:8px;padding:2px;}
+  .gamecard .sym:hover{background:#f3ead9;}
+  .gamecard.wrong{animation:shake .3s;border-color:var(--red);}
+  @keyframes shake{25%{transform:translateX(-5px);}75%{transform:translateX(5px);}}
+  .hidden{display:none;}
+  @media (max-width:520px){
+    .wrap{padding:14px 10px 40px;}
+    .toolbar{gap:6px;}
+    .toolbar button{padding:9px 11px;font-size:14px;}
+    .sep{display:none;}
+    .status{font-size:14px;}
+    .deck{grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;}
+    .deck.mini{grid-template-columns:repeat(2,1fr);}
+    .deck.mini .card.c3 .grid3 .e{font-size:44px;}
+    .card{padding:8px 4px 4px;}
+    .sym .e{font-size:20px;}
+    .gamecard{padding:10px;min-height:134px;}
+    .gamecard .sym{padding:4px;}
+    .gameboard{gap:10px;}
+    .score{font-size:13.5px;}
+    footer{font-size:12px;}
+  }
+  footer{margin-top:36px;color:var(--muted);font-size:13px;text-align:center;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>«Доббль»: почему на двух карточках всегда есть общий символ</h1>
+  <p class="sub">Интерактивная проверка + мини-игра. Кликайте по карточкам — общий символ подсветится золотым.</p>
+
+  <div class="toolbar">
+    <button class="modebtn active" data-mode="mini">Мини: 7 × 3</button>
+    <button class="modebtn" data-mode="full">Классика: 57 × 8</button>
+    <span class="sep"></span>
+    <button class="tabbtn active" data-tab="sandbox">🔍 Проверка</button>
+    <button class="tabbtn" data-tab="game">🎮 Игра</button>
+    <button id="numsBtn">Показать номера символов</button>
+  </div>
+
+  <!-- ===================== SANDBOX ===================== -->
+  <section id="sandbox">
+    <div class="status" id="status">Кликните по любым двум карточкам — у них всегда ровно <b>один</b> общий символ.</div>
+    <div class="toolbar">
+      <button id="verifyBtn">⚡ Проверить все пары</button>
+      <button id="clearBtn">Сбросить выбор</button>
+    </div>
+    <p class="note" id="modedesc">Мини-версия: 7 карточек по 3 символа — как в объяснении (номера совпадают с таблицей).</p>
+    <div class="deck" id="deck"></div>
+  </section>
+
+  <!-- ===================== GAME ===================== -->
+  <section id="game" class="hidden">
+    <div class="score">Раунд: <b id="round">0</b> · Лучшее время: <b id="best">—</b> · Промахи: <b id="miss">0</b> · <span class="timer">⏱ <b id="time">0.0</b> с</span></div>
+    <div class="gameboard">
+      <div class="gamecard" id="g1"></div>
+      <div class="gamecard" id="g2"></div>
+    </div>
+    <div class="status" id="gstatus">Нажмите «Начать» — выйдет пара карточек, и нужно найти у них общий символ.</div>
+    <div class="toolbar">
+      <button id="startBtn">▶ Начать</button>
+      <button id="skipBtn">🔀 Другая пара</button>
+      <button id="hintBtn">💡 Подсказка</button>
+    </div>
+  </section>
+
+  <footer>Схема — конечная проективная плоскость: мини = порядок 2 (7 символов, по 3 на карточке), классика = порядок 7 (57 символов, по 8 на карточке; в настоящей коробке 55 карточек).</footer>
+</div>
+
+<script>
+// ----------------------------- данные -----------------------------
+const EMOJI = [
+ ["🐶","собака"],["🐱","кошка"],["🐭","мышь"],["🐰","заяц"],["🦊","лиса"],["🐻","медведь"],["🐼","панда"],
+ ["🐨","коала"],["🐯","тигр"],["🦁","лев"],["🐮","корова"],["🐷","свинка"],["🐸","лягушка"],["🐵","обезьяна"],
+ ["🐔","курица"],["🐧","пингвин"],["🦆","утка"],["🦉","сова"],["🦇","летучая мышь"],["🐺","волк"],["🐴","лошадь"],
+ ["🦄","единорог"],["🐝","пчела"],["🐛","гусеница"],["🦋","бабочка"],["🐌","улитка"],["🐞","божья коровка"],
+ ["🐢","черепаха"],["🐍","змея"],["🐙","осьминог"],["🦀","краб"],["🐟","рыба"],["🐬","дельфин"],["🐳","кит"],
+ ["🦖","динозавр"],["🍓","земляника"],["🍋","лимон"],["🍌","банан"],["🍉","арбуз"],["🍇","виноград"],["🍒","вишня"],
+ ["🍑","персик"],["🥝","киви"],["🍍","ананас"],["🥑","авокадо"],["🥕","морковь"],["🌽","кукуруза"],["🍄","гриб"],
+ ["🍞","хлеб"],["🧀","сыр"],["🍕","пицца"],["🍩","пончик"],["🍪","печенье"],["🎂","торт"],["🍫","шоколад"],["🍭","леденец"],
+ ["⚽","футбольный мяч"],["🎾","теннисный мяч"],["🎲","кубик"],["🎯","мишень"],["🎸","гитара"],["🥁","барабан"],
+ ["🚀","ракета"],["✈️","самолёт"],["⛵","парусник"],["🚲","велосипед"],["⌚","часы"],["📷","фотоаппарат"],
+ ["💡","лампочка"],["🔑","ключ"],["🎁","подарок"],["🎈","шарик"],["🔥","огонь"],["⭐","звезда"],["🌙","луна"],
+ ["☂️","зонт"],["🌈","радуга"],["❄️","снежинка"]
+];
+
+// Колода-«классика»: проективная плоскость порядка n (n — простое).
+function buildFullDeck(n) {
+  const cards = [];
+  for (let m = 0; m < n; m++) {
+    for (let b = 0; b < n; b++) {
+      const c = [];
+      for (let x = 0; x < n; x++) c.push(x * n + (m * x + b) % n);
+      c.push(n * n + m);
+      cards.push(c);
+    }
+  }
+  for (let c2 = 0; c2 < n; c2++) {
+    const c = [];
+    for (let y = 0; y < n; y++) c.push(c2 * n + y);
+    c.push(n * n + n);
+    cards.push(c);
+  }
+  const inf = [];
+  for (let i = 0; i <= n; i++) inf.push(n * n + i);
+  cards.push(inf);
+  return cards;
+}
+
+// Мини-версия из объяснения: 7 карточек, символы 1–7 (sid+1).
+const MINI = [[0,1,2],[0,3,4],[0,5,6],[1,3,5],[1,4,6],[2,3,6],[2,4,5]];
+
+const state = {
+  mode: "mini",
+  deck: [],
+  symCount: 7,
+  selected: [],
+  game: { active:false, round:0, best:null, miss:0, a:null, b:null, common:null, t0:0, timerId:null, solved:false }
+};
+
+// ----------------------------- утилиты -----------------------------
+const $ = id => document.getElementById(id);
+function commonSyms(a, b) { return a.filter(x => b.includes(x)); }
+function shuffleArr(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function symEl(sid) {
+  const s = document.createElement("span"); s.className = "sym"; s.dataset.sid = sid;
+  s.title = EMOJI[sid][1];
+  const e = document.createElement("span"); e.className = "e"; e.textContent = EMOJI[sid][0];
+  const n = document.createElement("span"); n.className = "n"; n.textContent = String(sid + 1);
+  s.appendChild(e); s.appendChild(n);
+  return s;
+}
+function cardEl(syms, label) {
+  const el = document.createElement("div");
+  el.className = "card" + (syms.length === 3 ? " c3" : "");
+  if (label != null) { const n = document.createElement("div"); n.className = "num"; n.textContent = "№" + label; el.appendChild(n); }
+  const g = document.createElement("div"); g.className = "grid3";
+  syms.forEach(sid => g.appendChild(symEl(sid)));
+  el.appendChild(g);
+  return el;
+}
+
+// ----------------------------- песочница -----------------------------
+function renderSandbox() {
+  const deckEl = $("deck"); deckEl.innerHTML = "";
+  deckEl.classList.toggle("mini", state.mode === "mini");
+  state.selected = [];
+  state.deck.forEach((card, i) => {
+    const el = cardEl(card, i + 1);
+    el.addEventListener("click", () => onCardClick(i));
+    deckEl.appendChild(el);
+  });
+  paintSelection();
+}
+function onCardClick(i) {
+  const p = state.selected.indexOf(i);
+  if (p >= 0) state.selected.splice(p, 1);
+  else { state.selected.push(i); if (state.selected.length > 2) state.selected = [i]; }
+  paintSelection();
+}
+function paintSelection() {
+  const cards = [...document.querySelectorAll("#deck .card")];
+  cards.forEach(el => el.classList.remove("sel"));
+  document.querySelectorAll("#deck .sym.hit").forEach(el => el.classList.remove("hit"));
+  state.selected.forEach(i => cards[i].classList.add("sel"));
+  const st = $("status");
+  if (state.selected.length === 0) {
+    st.innerHTML = "Кликните по любым двум карточкам — у них всегда ровно <b>один</b> общий символ.";
+    return;
+  }
+  if (state.selected.length === 1) {
+    st.innerHTML = "Выбрана карточка <b>№" + (state.selected[0] + 1) + "</b>. Теперь выберите вторую.";
+    return;
+  }
+  const [i, j] = state.selected;
+  const common = commonSyms(state.deck[i], state.deck[j]);
+  [i, j].forEach(k => {
+    cards[k].querySelectorAll(".sym").forEach(s => {
+      if (common.includes(Number(s.dataset.sid))) s.classList.add("hit");
+    });
+  });
+  if (common.length === 1) {
+    const s = common[0];
+    st.innerHTML = "Карточки <b>№" + (i + 1) + "</b> и <b>№" + (j + 1) + "</b>: общий символ — " +
+      " <b>" + EMOJI[s][0] + " " + EMOJI[s][1] + "</b>" + (state.mode === "mini" ? " (№" + (s + 1) + ")" : "") +
+      ". И он ровно один ✨";
+  } else {
+    st.innerHTML = "Общих символов: " + common.length + " (такого быть не должно!).";
+  }
+}
+function verifyAll() {
+  const D = state.deck, m = D.length;
+  let bad = 0, minI = 99, maxI = -1, pairs = 0;
+  for (let i = 0; i < m; i++) for (let j = i + 1; j < m; j++) {
+    pairs++;
+    const k = commonSyms(D[i], D[j]).length;
+    if (k !== 1) bad++;
+    if (k < minI) minI = k;
+    if (k > maxI) maxI = k;
+  }
+  const occ = new Array(state.symCount).fill(0);
+  D.forEach(c => c.forEach(s => occ[s]++));
+  const occSet = [...new Set(occ)].join(" / ");
+  $("status").innerHTML = "⚡ Проверено пар: <b>" + pairs + "</b>. У каждой — ровно один общий символ " +
+    "(минимум " + minI + ", максимум " + maxI + "). Нарушений: <b>" + bad + "</b>.<br>" +
+    "Каждый символ встречается ровно на <b>" + occSet + "</b> карточках.";
+}
+
+// ----------------------------- игра -----------------------------
+function renderGameCard(id, card) {
+  const el = $(id); el.innerHTML = ""; el.classList.remove("wrong");
+  const g = document.createElement("div"); g.className = "grid3";
+  shuffleArr(card.slice()).forEach(sid => {
+    const s = symEl(sid);
+    s.classList.add("big");
+    s.addEventListener("click", () => onGameClick(sid, el));
+    g.appendChild(s);
+  });
+  el.appendChild(g);
+}
+function nextRound() {
+  const g = state.game; if (!g.active) return;
+  const m = state.deck.length;
+  let a = Math.floor(Math.random() * m), b = a;
+  while (b === a) b = Math.floor(Math.random() * m);
+  g.a = a; g.b = b; g.solved = false;
+  g.common = commonSyms(state.deck[a], state.deck[b])[0];
+  g.t0 = performance.now();
+  clearInterval(g.timerId);
+  g.timerId = setInterval(() => { $("time").textContent = ((performance.now() - g.t0) / 1000).toFixed(1); }, 83);
+  renderGameCard("g1", state.deck[a]);
+  renderGameCard("g2", state.deck[b]);
+  $("gstatus").innerHTML = "Найдите общий символ двух карточек и кликните по нему — на любой из карточек!";
+}
+function onGameClick(sid, cardElm) {
+  const g = state.game; if (!g.active || g.solved) return;
+  if (sid === g.common) {
+    g.solved = true;
+    clearInterval(g.timerId);
+    const t = (performance.now() - g.t0) / 1000;
+    g.round++;
+    if (g.best === null || t < g.best) g.best = t;
+    updateScore();
+    $("gstatus").innerHTML = "✅ Есть! Общий символ: <b>" + EMOJI[sid][0] + " " + EMOJI[sid][1] +
+      "</b>. Время: <b>" + t.toFixed(1) + " с</b>.";
+    setTimeout(() => { if (g.active) nextRound(); }, 1300);
+  } else {
+    g.miss++; updateScore();
+    cardElm.classList.add("wrong");
+    setTimeout(() => cardElm.classList.remove("wrong"), 350);
+    $("gstatus").innerHTML = "Не он 🙂 Попробуйте ещё — общий символ точно есть.";
+  }
+}
+function updateScore() {
+  const g = state.game;
+  $("round").textContent = g.round;
+  $("best").textContent = g.best === null ? "—" : g.best.toFixed(1) + " с";
+  $("miss").textContent = g.miss;
+}
+function startGame() {
+  const g = state.game;
+  g.active = true; g.round = 0; g.best = null; g.miss = 0;
+  updateScore(); $("time").textContent = "0.0";
+  nextRound();
+}
+function skipRound() { const g = state.game; if (g.active) nextRound(); }
+function showHint() {
+  const g = state.game; if (!g.active) return;
+  document.querySelectorAll(".gamecard .sym").forEach(s => {
+    if (Number(s.dataset.sid) === g.common) s.classList.add("hit");
+  });
+}
+function resetGame() {
+  const g = state.game;
+  g.active = false; g.round = 0; g.best = null; g.miss = 0; clearInterval(g.timerId);
+  ["g1", "g2"].forEach(id => $(id).innerHTML = "");
+  $("gstatus").textContent = "Нажмите «Начать» — выйдет пара карточек, и нужно найти у них общий символ.";
+  $("time").textContent = "0.0";
+  updateScore();
+}
+
+// ----------------------------- режимы и вкладки -----------------------------
+function setMode(mode) {
+  state.mode = mode;
+  document.querySelectorAll(".modebtn").forEach(b => b.classList.toggle("active", b.dataset.mode === mode));
+  if (mode === "mini") {
+    state.deck = MINI.map(c => c.slice());
+    state.symCount = 7;
+    $("modedesc").textContent = "Мини-версия: 7 карточек по 3 символа — как в объяснении (номера совпадают с таблицей).";
+  } else {
+    state.deck = buildFullDeck(7);
+    state.symCount = 57;
+    $("modedesc").textContent = "Классический размер: 57 карточек по 8 символов (в настоящей коробке лежат 55 из 57 возможных).";
+  }
+  renderSandbox();
+  resetGame();
+}
+function showTab(tab) {
+  document.querySelectorAll(".tabbtn").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+  $("sandbox").classList.toggle("hidden", tab !== "sandbox");
+  $("game").classList.toggle("hidden", tab !== "game");
+}
+
+// ----------------------------- запуск -----------------------------
+document.querySelectorAll(".modebtn").forEach(b => b.addEventListener("click", () => setMode(b.dataset.mode)));
+document.querySelectorAll(".tabbtn").forEach(b => b.addEventListener("click", () => showTab(b.dataset.tab)));
+$("verifyBtn").addEventListener("click", verifyAll);
+$("clearBtn").addEventListener("click", () => { state.selected = []; paintSelection(); });
+$("numsBtn").addEventListener("click", () => { document.body.classList.toggle("nums"); });
+$("startBtn").addEventListener("click", startGame);
+$("skipBtn").addEventListener("click", skipRound);
+$("hintBtn").addEventListener("click", showHint);
+
+setMode("mini");
+</script>
+</body>
+</html>
