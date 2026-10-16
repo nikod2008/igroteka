@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Кубик Рубика — онлайн-решатель</title>
+<style>
+:root{
+  --cream:#f7f1e6; --paper:#fffdf8; --ink:#2f2a24; --muted:#7b7163; --line:#e8ddc9;
+  --shadow:0 2px 10px rgba(90,70,40,.08);
+  --cU:#f5f5f2; --cR:#e2393a; --cF:#3aa255; --cD:#efcb38; --cL:#ef8b2c; --cB:#3b76d1; --cX:#dcd6c9;
+  --cell:34px;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--cream);color:var(--ink);
+     font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif;line-height:1.5}
+.wrap{max-width:1100px;margin:0 auto;padding:24px 16px 60px}
+h1{font-family:Georgia,"Times New Roman",serif;font-size:clamp(22px,4vw,30px);margin:0 0 6px;color:#241f19}
+h2{font-family:Georgia,serif;font-size:19px;margin:0 0 10px;color:#241f19}
+.sub{color:var(--muted);font-size:14.5px;margin:0 0 16px}
+.layout{display:grid;grid-template-columns:minmax(370px,470px) minmax(280px,1fr);gap:20px;align-items:start}
+@media (max-width:900px){.layout{grid-template-columns:1fr}}
+.panel{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:16px 18px;box-shadow:var(--shadow);margin-bottom:14px}
+/* palette */
+.palette{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+.swatch{width:34px;height:34px;border-radius:9px;border:2px solid rgba(0,0,0,.15);cursor:pointer;position:relative}
+.swatch:hover{transform:translateY(-1px)}
+.swatch.sel{outline:3px solid #3f7fd6;outline-offset:2px}
+.swatch.eraser{background:#f3ead9;color:#7b7163;font-size:16px;display:flex;align-items:center;justify-content:center}
+.palette .lbl{font-size:13px;color:var(--muted);margin-left:4px}
+/* net */
+.net{display:grid;grid-template-columns:repeat(4,auto);grid-template-rows:repeat(3,auto);gap:12px;justify-content:center;user-select:none;-webkit-user-select:none}
+.face{display:grid;grid-template-columns:repeat(3,var(--cell));grid-auto-rows:var(--cell);gap:3px;padding:5px;
+      border-radius:12px;background:#efe7d8;border:1px solid var(--line)}
+.face .fc{grid-column:1/-1;text-align:center;font-size:11px;color:var(--muted);margin-bottom:3px}
+.fU{grid-area:1/2}.fL{grid-area:2/1}.fF{grid-area:2/2}.fR{grid-area:2/3}.fB{grid-area:2/4}.fD{grid-area:3/2}
+.cell{width:100%;height:100%;border-radius:7px;cursor:pointer;border:1px solid rgba(0,0,0,.18);
+      background:var(--cX);transition:filter .1s, transform .1s;touch-action:manipulation}
+.cell:hover{filter:brightness(1.07)}
+.cell.fixed{cursor:default;border-style:dashed}
+.cell.fixed:hover{filter:none}
+/* buttons */
+.rowbtns{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.btn{font:inherit;border:1px solid var(--line);background:var(--paper);border-radius:10px;padding:9px 14px;
+     cursor:pointer;box-shadow:var(--shadow);color:var(--ink);min-height:42px;touch-action:manipulation}
+.btn:hover{border-color:#cdbfa4}
+.btn.primary{background:#2e7d46;border-color:#2e7d46;color:#fff;font-weight:600}
+.btn.primary:hover{background:#276b3c}
+.btn:disabled{opacity:.55;cursor:default}
+/* status */
+.status{padding:10px 12px;border-radius:10px;background:#fdf6e3;border:1px dashed #d9c79b;font-size:14px;margin-top:12px}
+.status.error{background:#fdecea;border-color:#e5a9a0;color:#8a2f26}
+.status.ok{background:#eaf6ec;border-color:#b3d8bb;color:#2c6b3d}
+/* solution */
+.sol{margin-top:4px}
+.stage{margin-bottom:10px}
+.stage-title{font-size:13px;color:var(--muted);margin-bottom:4px}
+.mv{display:inline-block;padding:2px 8px;margin:2px 3px 2px 0;background:#f3ead9;border:1px solid var(--line);
+    border-radius:7px;font-family:Consolas,"Courier New",monospace;font-size:13.5px}
+.mv.cur{background:#3f7fd6;border-color:#3f7fd6;color:#fff}
+.mv.done{opacity:.45}
+.player{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+.player .cnt{font-size:13.5px;color:var(--muted);margin-left:2px}
+.player .spd{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+.player input[type=range]{width:110px}
+.note{font-size:12.5px;color:var(--muted);margin-top:10px}
+@media (max-width:520px){
+  :root{--cell:27px}
+  .wrap{padding:16px 10px 44px}
+  .panel{padding:12px 12px}
+  .swatch{width:30px;height:30px}
+}
+
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Кубик Рубика: онлайн-решатель</h1>
+  <p class="sub">Введите раскладку — получите пошаговое решение с проигрыванием. Держите кубик <b>белым центром вверх, зелёным к себе</b> и раскрасьте клетки как на вашем кубике. Работает офлайн, ничего никуда не отправляется.</p>
+  <div class="layout">
+    <section>
+      <div class="panel">
+        <div class="palette" id="palette"></div>
+        <div class="net" id="net"></div>
+        <div class="rowbtns">
+          <button class="btn primary" id="btnSolve">✅ Решить</button>
+          <button class="btn" id="btnScramble">🎲 Пример перемешки</button>
+          <button class="btn" id="btnReset">↺ Сбросить</button>
+        </div>
+        <div class="status" id="status"></div>
+        <div class="note">Центры закреплены: сверху белый, снизу жёлтый, спереди зелёный, справа красный, слева оранжевый, сзади синий. Если у вашего кубика другая схема — покрутите кубик в руках так, чтобы цвета совпали с этой рамкой.</div>
+      </div>
+    </section>
+    <section>
+      <div class="panel">
+        <h2>Решение</h2>
+        <div class="sol" id="solution"></div>
+        <div class="player" id="player" style="display:none">
+          <button class="btn" id="btnFirst">⏮</button>
+          <button class="btn" id="btnPrev">◀</button>
+          <button class="btn" id="btnNext">▶</button>
+          <button class="btn" id="btnLast">⏭</button>
+          <button class="btn" id="btnPlay">▶ Авто</button>
+          <span class="cnt" id="cnt">—</span>
+          <span class="spd">скорость <input type="range" id="speed" min="120" max="900" value="420"></span>
+        </div>
+        <div class="rowbtns">
+          <button class="btn" id="btnCopy">📋 Скопировать решение</button>
+        </div>
+        <div class="note">Обозначения ходов: <b>R</b> — правая грань по часовой (если смотреть на неё), <b>U</b> — верхняя, <b>F</b> — передняя, <b>D</b> — нижняя, <b>L</b> — левая, <b>B</b> — задняя. Штрих (R′) — против часовой, двойка (R2) — пол-оборота.</div>
+      </div>
+    </section>
+  </div>
+</div>
+<script>
+
+/* ===== cube.js ===== */
+/* Ядро кубика 3x3: стикеры, ходы, применение последовательностей. Без DOM.
+   Экспорт: module.exports (Node) или window.CubeCore (браузер). */
+(function (root, factory) {
+  if (typeof module !== 'undefined' && module.exports) module.exports = factory();
+  else root.CubeCore = factory();
+}(typeof self !== 'undefined' ? self : this, function () {
+'use strict';
+var FACES = ['U','R','F','D','L','B']; // верх, право, фронт, низ, лево, тыл
+var NORMS = {U:[0,1,0], R:[1,0,0], F:[0,0,1], D:[0,-1,0], L:[-1,0,0], B:[0,0,-1]};
+
+// позиция стикера (x,y,z): x — вправо, y — вверх, z — на зрителя (F)
+function posFor(f, r, c) {
+  switch (f) {
+    case 'U': return [c-1, 1, r-1];
+    case 'R': return [1, 1-r, 1-c];
+    case 'F': return [c-1, 1-r, 1];
+    case 'D': return [c-1, -1, 1-r];
+    case 'L': return [-1, 1-r, c-1];
+    case 'B': return [1-c, 1-r, -1];
+  }
+}
+
+var stickers = [], idxByKey = {};
+FACES.forEach(function (f) {
+  var n = NORMS[f];
+  for (var r = 0; r < 3; r++) for (var c = 0; c < 3; c++) {
+    var p = posFor(f, r, c);
+    var key = p.join(',') + '|' + n.join(',');
+    idxByKey[key] = stickers.length;
+    stickers.push({ f: f, r: r, c: c, p: p, n: n });
+  }
+});
+
+// повороты 90°: отображения для слоёв (как смотрит наблюдатель снаружи, по часовой)
+var TF = {
+  U: function (p) { return [-p[2], p[1], p[0]]; },
+  D: function (p) { return [ p[2], p[1], -p[0]]; },
+  R: function (p) { return [ p[0],  p[2], -p[1]]; },
+  L: function (p) { return [ p[0], -p[2],  p[1]]; },
+  F: function (p) { return [ p[1], -p[0], p[2]]; },
+  B: function (p) { return [-p[1], p[0], p[2]]; }
+};
+var LF = {
+  U: function (p) { return p[1] === 1; },
+  D: function (p) { return p[1] === -1; },
+  R: function (p) { return p[0] === 1; },
+  L: function (p) { return p[0] === -1; },
+  F: function (p) { return p[2] === 1; },
+  B: function (p) { return p[2] === -1; }
+};
+
+function tk(p, n) { return p.join(',') + '|' + n.join(','); }
+function findIdx(p, n) {
+  var i = idxByKey[tk(p, n)];
+  if (i === undefined) throw new Error('sticker missing: ' + tk(p, n));
+  return i;
+}
+function compose(a, b) { var o = new Array(54); for (var i = 0; i < 54; i++) o[i] = b[a[i]]; return o; }
+function inv(p) { var o = new Array(54); for (var i = 0; i < 54; i++) o[p[i]] = i; return o; }
+
+// PERM['U'] — массив: стикер из i переходит в PERM[i]
+var PERM = {};
+FACES.forEach(function (f) {
+  var p = new Array(54);
+  for (var i = 0; i < 54; i++) {
+    var s = stickers[i], j = i;
+    if (LF[f](s.p)) j = findIdx(TF[f](s.p), TF[f](s.n));
+    p[i] = j;
+  }
+  var p2 = compose(p, p), p3 = compose(p2, p);
+  PERM[f] = p; PERM[f + '2'] = p2; PERM[f + "'"] = p3;
+});
+var INV = {}; for (var k in PERM) INV[k] = inv(PERM[k]);
+
+function applyTokens(state, tokens) {
+  var st = state.slice();
+  for (var t = 0; t < tokens.length; t++) {
+    var p = PERM[tokens[t]];
+    if (!p) throw new Error('unknown move: ' + tokens[t]);
+    var out = new Array(54);
+    for (var i = 0; i < 54; i++) out[p[i]] = st[i];
+    st = out;
+  }
+  return st;
+}
+function applyTo(state, key, inverseFlag) {
+  var p = inverseFlag ? INV[key] : PERM[key];
+  var tmp = new Array(54);
+  for (var i = 0; i < 54; i++) tmp[p[i]] = state[i];
+  for (var j = 0; j < 54; j++) state[j] = tmp[j];
+  return state;
+}
+function parse(str) { return String(str).trim().split(/\s+/).filter(function (x) { return x.length; }); }
+function applyStr(state, str) { return applyTokens(state, parse(str)); }
+function solvedState() { var st = new Array(54); for (var i = 0; i < 54; i++) st[i] = stickers[i].f; return st; }
+function isSolved(st) { for (var i = 0; i < 54; i++) if (st[i] !== stickers[i].f) return false; return true; }
+function randomScramble(n) {
+  var arr = [], prev = -1;
+  for (var i = 0; i < n; i++) {
+    var f;
+    do { f = Math.floor(Math.random() * 6); } while (f === prev);
+    prev = f;
+    arr.push(FACES[f] + ['', '2', "'"][Math.floor(Math.random() * 3)]);
+  }
+  return arr;
+}
+function scrambleState(n) { return applyTokens(solvedState(), randomScramble(n)); }
+function idx(f, r, c) { return FACES.indexOf(f) * 9 + r * 3 + c; }
+
+return {
+  FACES: FACES, stickers: stickers, idxByKey: idxByKey, PERM: PERM, INV: INV,
+  applyTokens: applyTokens, applyStr: applyStr, applyTo: applyTo, parse: parse,
+  solvedState: solvedState, isSolved: isSolved,
+  randomScramble: randomScramble, scrambleState: scrambleState, idx: idx
+};
+}));
+
+/* ===== solver.js ===== */
+/* Решатель кубика 3x3: послойный метод.
+   - Крест: BFS по проекции белых рёбер (точные таблицы переходов).
+   - Остальное: поиск по библиотеке макросов (IDDFS) со ступенчатым откатом (U-набор / D-набор / объединение).
+   Экспорт: module.exports / window.CubeSolver */
+(function (root, factory) {
+  if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./cube.js'));
+  else root.CubeSolver = factory(root.CubeCore);
+}(typeof self !== 'undefined' ? self : this, function (C) {
+'use strict';
+
+var NORM = { U: [0,1,0], R: [1,0,0], F: [0,0,1], D: [0,-1,0], L: [-1,0,0], B: [0,0,-1] };
+var st = C.stickers;
+
+function nz(p) { return (p[0] !== 0 ? 1 : 0) + (p[1] !== 0 ? 1 : 0) + (p[2] !== 0 ? 1 : 0); }
+var isEdgeSticker = [], isCornerSticker = [];
+for (var si = 0; si < 54; si++) {
+  var c = nz(st[si].p);
+  isEdgeSticker[si] = (c === 2);
+  isCornerSticker[si] = (c === 3);
+}
+function dot(a, b) { return a[0]*b[0] + a[1]*b[1] + a[2]*b[2]; }
+function edgeSticker(f, g) {
+  for (var i = 0; i < 54; i++) if (st[i].f === f && isEdgeSticker[i] && dot(st[i].p, NORM[g]) === 1) return i;
+  throw new Error('edgeSticker ' + f + g);
+}
+
+/* ---------- слоты рёбер ---------- */
+var SLOT_NAMES = ['UR','UF','UL','UB','FR','FL','BL','BR','DR','DF','DL','DB'];
+var SLOT_IDX = {}; SLOT_NAMES.forEach(function (n, i) { SLOT_IDX[n] = i; });
+var slotStickers = {}, slotOfSticker = {};
+SLOT_NAMES.forEach(function (name) {
+  var f1 = name[0], f2 = name[1];
+  var s1 = edgeSticker(f1, f2), s2 = edgeSticker(f2, f1);
+  slotStickers[name] = [s1, s2];
+  var prim = null;
+  if (f1 === 'U' || f1 === 'D') prim = s1;
+  else if (f2 === 'U' || f2 === 'D') prim = s2;
+  if (!prim) { if (f1 === 'F' || f1 === 'B') prim = s1; else if (f2 === 'F' || f2 === 'B') prim = s2; }
+  slotOfSticker[s1] = { slot: name, primary: (prim === s1) };
+  slotOfSticker[s2] = { slot: name, primary: (prim === s2) };
+});
+
+/* ---------- таблицы переходов белых рёбер ---------- */
+var MOVES18 = [];
+C.FACES.forEach(function (f) { MOVES18.push(f); MOVES18.push(f + '2'); MOVES18.push(f + "'"); });
+var T = {};
+MOVES18.forEach(function (mv) {
+  var perm = C.PERM[mv];
+  var tab = new Array(24);
+  SLOT_NAMES.forEach(function (name, sidx) {
+    var ss = slotStickers[name];
+    var pr = slotOfSticker[ss[0]].primary ? ss[0] : ss[1];
+    var se = (pr === ss[0]) ? ss[1] : ss[0];
+    var d0 = perm[pr], d1 = perm[se];
+    var i0 = slotOfSticker[d0], i1 = slotOfSticker[d1];
+    if (i0.slot !== i1.slot) throw new Error('slot mismatch ' + mv + ' ' + name);
+    tab[sidx * 2] = SLOT_IDX[i0.slot] * 2 + (i0.primary ? 0 : 1);
+    tab[sidx * 2 + 1] = SLOT_IDX[i1.slot] * 2 + (i1.primary ? 0 : 1);
+  });
+  T[mv] = tab;
+});
+
+var WHITE_PIECES = ['UF','UR','UB','UL'];
+var WHITE_TARGETS = [SLOT_IDX['UF'], SLOT_IDX['UR'], SLOT_IDX['UB'], SLOT_IDX['UL']];
+
+function extractWhiteEdges(state) {
+  var res = [null, null, null, null];
+  for (var i = 0; i < 54; i++) {
+    if (!isEdgeSticker[i]) continue;
+    if (state[i] !== 'U') continue;
+    var info = slotOfSticker[i];
+    if (!info) continue;
+    var ss = slotStickers[info.slot];
+    var other = (ss[0] === i) ? ss[1] : ss[0];
+    var pi = WHITE_PIECES.indexOf('U' + state[other]);
+    if (pi < 0) continue;
+    res[pi] = { slot: SLOT_IDX[info.slot], ori: info.primary ? 0 : 1 };
+  }
+  return res;
+}
+
+var ENC_N = 24 * 24 * 24 * 24;
+function crossBFS(state) {
+  var pe = extractWhiteEdges(state);
+  var codes = pe.map(function (p) { return p.slot * 2 + p.ori; });
+  var start = ((codes[0] * 24 + codes[1]) * 24 + codes[2]) * 24 + codes[3];
+  var target = ((WHITE_TARGETS[0] * 2) * 24 + WHITE_TARGETS[1] * 2) * 24;
+  target = (target + WHITE_TARGETS[2] * 2) * 24 + WHITE_TARGETS[3] * 2;
+  if (start === target) return [];
+  var visited = new Uint8Array(ENC_N), parent = new Int32Array(ENC_N), pmove = new Uint8Array(ENC_N);
+  var queue = new Int32Array(ENC_N);
+  var qh = 0, qt = 0;
+  visited[start] = 1; queue[qt++] = start;
+  while (qh < qt) {
+    var cur = queue[qh++];
+    var c3 = cur % 24, t3 = (cur - c3) / 24;
+    var c2 = t3 % 24, t2 = (t3 - c2) / 24;
+    var c1 = t2 % 24, c0 = (t2 - c1) / 24;
+    for (var mi = 0; mi < 18; mi++) {
+      var tab = T[MOVES18[mi]];
+      var n0 = tab[c0], n1 = tab[c1], n2 = tab[c2], n3 = tab[c3];
+      var enc = ((n0 * 24 + n1) * 24 + n2) * 24 + n3;
+      if (!visited[enc]) {
+        visited[enc] = 1; parent[enc] = cur; pmove[enc] = mi; queue[qt++] = enc;
+        if (enc === target) {
+          var path = [], e = enc;
+          while (e !== start) { path.push(MOVES18[pmove[e]]); e = parent[e]; }
+          path.reverse();
+          return path;
+        }
+      }
+    }
+  }
+  throw new Error('cross BFS: не найдено');
+}
+
+/* ---------- проверки целей ---------- */
+function crossDone(s) {
+  return s[C.idx('U',0,1)] === 'U' && s[C.idx('U',1,0)] === 'U' && s[C.idx('U',1,2)] === 'U' && s[C.idx('U',2,1)] === 'U' &&
+         s[C.idx('B',0,1)] === 'B' && s[C.idx('L',0,1)] === 'L' && s[C.idx('R',0,1)] === 'R' && s[C.idx('F',0,1)] === 'F';
+}
+var CORNERS = [
+  { name: 'URF', st: [['U',2,2],['R',0,0],['F',0,2]], colors: ['U','R','F'] },
+  { name: 'UFL', st: [['U',2,0],['F',0,0],['L',0,2]], colors: ['U','F','L'] },
+  { name: 'ULB', st: [['U',0,0],['L',0,0],['B',0,2]], colors: ['U','L','B'] },
+  { name: 'UBR', st: [['U',0,2],['B',0,0],['R',0,2]], colors: ['U','B','R'] }
+];
+function cornerOk(s, k) {
+  var cc = CORNERS[k];
+  for (var i = 0; i < 3; i++) { var t = cc.st[i]; if (s[C.idx(t[0], t[1], t[2])] !== cc.colors[i]) return false; }
+  return true;
+}
+function allCornersOk(s) { for (var k = 0; k < 4; k++) if (!cornerOk(s, k)) return false; return true; }
+var MIDS = [
+  { st: [['F',1,2],['R',1,0]], colors: ['F','R'] },
+  { st: [['F',1,0],['L',1,2]], colors: ['F','L'] },
+  { st: [['B',1,2],['L',1,0]], colors: ['B','L'] },
+  { st: [['B',1,0],['R',1,2]], colors: ['B','R'] }
+];
+function midOk(s, k) {
+  var mm = MIDS[k];
+  for (var i = 0; i < 2; i++) { var t = mm.st[i]; if (s[C.idx(t[0], t[1], t[2])] !== mm.colors[i]) return false; }
+  return true;
+}
+function allMidsOk(s) { for (var k = 0; k < 4; k++) if (!midOk(s, k)) return false; return true; }
+function yCrossDone(s) {
+  return s[C.idx('D',0,1)] === 'D' && s[C.idx('D',1,0)] === 'D' && s[C.idx('D',1,2)] === 'D' && s[C.idx('D',2,1)] === 'D';
+}
+function yEdgesDone(s) {
+  return yCrossDone(s) &&
+    s[C.idx('B',2,1)] === 'B' && s[C.idx('L',2,1)] === 'L' && s[C.idx('R',2,1)] === 'R' && s[C.idx('F',2,1)] === 'F';
+}
+var DCORNERS = [
+  { st: [['D',0,2],['F',2,2],['R',2,0]], colors: ['D','F','R'] },
+  { st: [['D',0,0],['L',2,2],['F',2,0]], colors: ['D','L','F'] },
+  { st: [['D',2,0],['B',2,2],['L',2,0]], colors: ['D','B','L'] },
+  { st: [['D',2,2],['B',2,0],['R',2,2]], colors: ['D','B','R'] }
+];
+function dCornerPosOk(s, k) {
+  var cc = DCORNERS[k], got = [];
+  for (var i = 0; i < 3; i++) { var t = cc.st[i]; got.push(s[C.idx(t[0], t[1], t[2])]); }
+  return got.slice().sort().join('') === cc.colors.slice().sort().join('');
+}
+function dCornerOk(s, k) {
+  var cc = DCORNERS[k];
+  for (var i = 0; i < 3; i++) { var t = cc.st[i]; if (s[C.idx(t[0], t[1], t[2])] !== cc.colors[i]) return false; }
+  return true;
+}
+function allDPosOk(s) { for (var k = 0; k < 4; k++) if (!dCornerPosOk(s, k)) return false; return true; }
+
+/* ---------- макросы ---------- */
+function compose2(a, b) { var o = new Array(54); for (var i = 0; i < 54; i++) o[i] = b[a[i]]; return o; }
+function inv2(p) { var o = new Array(54); for (var i = 0; i < 54; i++) o[p[i]] = i; return o; }
+function buildMacros(list) {
+  return list.map(function (str) {
+    var toks = C.parse(str), p = null;
+    toks.forEach(function (t) {
+      if (!C.PERM[t]) throw new Error('bad macro move: ' + t);
+      p = p ? compose2(p, C.PERM[t]) : C.PERM[t];
+    });
+    return { name: str, perm: p, inv: inv2(p), firstFace: toks[0][0], lastFace: toks[toks.length - 1][0] };
+  });
+}
+function swapUD(str) {
+  return str.split(' ').map(function (t) {
+    if (t[0] === 'U') return 'D' + t.slice(1);
+    if (t[0] === 'D') return 'U' + t.slice(1);
+    return t;
+  }).join(' ');
+}
+function unionUD(list) {
+  var out = list.slice();
+  list.forEach(function (s) { var v = swapUD(s); if (out.indexOf(v) < 0) out.push(v); });
+  return out;
+}
+function fbSwap(str) {
+  return str.split(' ').map(function (t) {
+    var f = t[0], m = { F: 'B', B: 'F' };
+    return (m[f] || f) + t.slice(1);
+  }).join(' ');
+}
+function x180(str) { return swapUD(fbSwap(str)); }
+function enrichList(base, addSideSingles) {
+  var out = base.slice();
+  base.forEach(function (s) {
+    [swapUD(s), fbSwap(s), x180(s)].forEach(function (v) { if (out.indexOf(v) < 0) out.push(v); });
+  });
+  if (addSideSingles) {
+    ['R','R2',"R'",'F','F2',"F'",'L','L2',"L'",'B','B2',"B'"].forEach(function (m) { if (out.indexOf(m) < 0) out.push(m); });
+  }
+  return out;
+}
+
+var X2 = "R' D' R D R' D' R D";
+var X4 = X2 + ' ' + X2;
+var L = {};
+L.corners = ['U','U2',"U'",
+  "R U R'", "R U' R'", "R U2 R'", "F' U' F", "F' U F", "F' U2 F",
+  "L U L'", "L U' L'", "L U2 L'", "B' U' B", "B' U B", "B' U2 B",
+  "R U R' U' R U R' U'", "R U' R' U R U' R' U", X2, X4];
+L.mids = ['U','U2',"U'",
+  "R U R'", "R U' R'", "F' U' F", "F' U F",
+  "U R U' R' U' F' U F", "U' F' U F U R U' R'",
+  "U L' U' L U F U' F'", "U' F U' F' U L' U L",
+  "R U R' U'", "F' U' F U", "L' U' L U", "B U B' U'"];
+L.ycross = ['U','U2',"U'", 'D','D2',"D'",
+  "F R U R' U' F'", "F U R U' R' F'", "F R U R' U' R U R' U' F'",
+  "R U R' U'"];
+L.yedges = ['U','U2',"U'", 'D','D2',"D'",
+  "R U R' U R U2 R'", "R U2 R' U' R U' R'",
+  "L' U' L U' L' U2 L", "L' U2 L U L' U L",
+  "R U' R U R U R U' R' U' R2", "R2 U R U R' U' R' U' R' U R'",
+  "F R U R' U' F'", "F U R U' R' F'",
+  "R U R' U'", "R U' R' U"];
+L.ycornpos = ['U','U2',"U'", 'D','D2',"D'",
+  "U R U' L' U R' U' L", "U' L' U R U' L U R'",
+  "R' F R' B2 R F' R' B2 R2", "R B' R F2 R' B R F2 R2",
+  "R2 U R U R' U' R' U' R' U R'", X2];
+L.ycornorient = ['U','U2',"U'", 'D','D2',"D'",
+  "R' D' R D", "R' D' R D R' D' R D", "R' D' R D R' D' R D R' D' R D R' D' R D",
+  "R U R'", "R U' R'", "F' U' F", "F' U F", "R U R' U'"];
+L.final = ['U','U2',"U'",'R','R2',"R'",'F','F2',"F'",'D','D2',"D'",'L','L2',"L'",'B','B2',"B'",
+  "R U R' U'", "R' D' R D", X2,
+  "F R U R' U' F'", "R U R' U R U2 R'", "R U2 R' U' R U' R'",
+  "L' U' L U' L' U2 L", "L' U2 L U L' U L",
+  "U R U' L' U R' U' L", "R' F R' B2 R F' R' B2 R2"];
+
+var MACS = {};
+MACS.cornersU = buildMacros(L.corners);
+MACS.cornersD = buildMacros(L.corners.map(swapUD));
+MACS.corners = buildMacros(unionUD(L.corners));
+MACS.midsU = buildMacros(L.mids);
+MACS.midsD = buildMacros(L.mids.map(swapUD));
+MACS.mids = buildMacros(unionUD(L.mids));
+MACS.ycrossU = buildMacros(L.ycross);
+MACS.ycross = buildMacros(unionUD(L.ycross));
+MACS.yedgesU = buildMacros(L.yedges);
+MACS.yedges = buildMacros(unionUD(L.yedges));
+MACS.ycornposU = buildMacros(L.ycornpos);
+MACS.ycornpos = buildMacros(unionUD(L.ycornpos));
+MACS.ycornorientU = buildMacros(L.ycornorient);
+MACS.ycornorient = buildMacros(unionUD(L.ycornorient));
+MACS.final = buildMacros(unionUD(L.final));
+MACS.cornersBig = buildMacros(enrichList(L.corners, true));
+MACS.midsBig = buildMacros(enrichList(L.mids, true));
+MACS.ycrossBig = buildMacros(enrichList(L.ycross, true));
+MACS.yedgesBig = buildMacros(enrichList(L.yedges, true));
+MACS.ycornposBig = buildMacros(enrichList(L.ycornpos, true));
+MACS.ycornorientBig = buildMacros(enrichList(L.ycornorient, true));
+
+/* --- двухфазная схема для средних рёбер --- */
+var EDGE_COLORS = [['F','R'],['F','L'],['B','L'],['B','R']];
+var BOTTOM_SLOTS = ['DF','DR','DB','DL'];
+function findEdgeSlot(state, c1, c2) {
+  for (var i = 0; i < SLOT_NAMES.length; i++) {
+    var ss = slotStickers[SLOT_NAMES[i]];
+    var a = state[ss[0]], b = state[ss[1]];
+    if ((a === c1 && b === c2) || (a === c2 && b === c1)) return SLOT_NAMES[i];
+  }
+  return null;
+}
+function dedupeList(list) { var out = []; list.forEach(function (s) { if (out.indexOf(s) < 0) out.push(s); }); return out; }
+function simplifyTokens(tokens) {
+  var out = [];
+  tokens.forEach(function (t) {
+    var f = t[0];
+    var a = t.length > 1 ? (t[1] === '2' ? 2 : 3) : 1;
+    if (out.length) {
+      var last = out[out.length - 1];
+      if (last[0] === f) {
+        var la = last.length > 1 ? (last[1] === '2' ? 2 : 3) : 1;
+        var sum = (la + a) % 4;
+        out.pop();
+        if (sum === 1) out.push(f);
+        else if (sum === 2) out.push(f + '2');
+        else if (sum === 3) out.push(f + "'");
+        return;
+      }
+    }
+    out.push(t);
+  });
+  return out;
+}
+var _insBase = ["U R U' R' U' F' U F", "U' F' U F U R U' R'", "U L' U' L U F U' F'", "U' F U' F' U L' U L"];
+var _insSet = [];
+_insBase.forEach(function (s) { [s, swapUD(s), fbSwap(s), x180(s)].forEach(function (v) { if (_insSet.indexOf(v) < 0) _insSet.push(v); }); });
+var _primed3 = ["R' U R","R' U' R","F U F'","F U' F'","L U L'","L U' L'","B' U B","B' U' B"];
+_primed3 = _primed3.concat(_primed3.map(function (s) { return swapUD(s); }));
+var _closed4 = ["F U F' U'","F U' F' U","R U R' U'","R U' R' U","L U L' U'","L U' L' U","B U B' U'","B U' B' U"];
+_closed4 = _closed4.concat(_closed4.map(function (s) { return swapUD(s); }));
+var _insSet2 = dedupeList(_insSet.concat(_primed3).concat(_closed4));
+var _aligns = ['', 'D', 'D2', "D'"];
+var _Blist = [];
+_insSet2.forEach(function (ins) {
+  ['', 'D', "D'", 'D2'].forEach(function (a) { var mac = a ? a + ' ' + ins : ins; if (_Blist.indexOf(mac) < 0) _Blist.push(mac); });
+});
+var MIDS_A_LIST = buildMacros(dedupeList(L.mids.concat(['R','R2',"R'",'F','F2',"F'",'L','L2',"L'",'B','B2',"B'"])));
+var MIDS_B_LIST = buildMacros(_Blist);
+var MIDS_A_LADDER = [{ macros: MIDS_A_LIST, depth: 3 }, { macros: MIDS_A_LIST, depth: 4 }, { macros: MACS.midsBig, depth: 4 }];
+var MIDS_B_LADDER = [{ macros: MIDS_B_LIST, depth: 2 }, { macros: MACS.midsBig, depth: 4 }, { macros: MIDS_B_LIST, depth: 3 }];
+var _MIDS_INS2 = buildMacros(_insSet2);
+var _MIDS_ALIGNS = buildMacros(['D', "D'", 'D2']);
+var _MIDS_ALIGNED = buildMacros((function () {
+  var out = [];
+  _insSet2.forEach(function (ins) { ['D', "D'", 'D2'].forEach(function (a) { out.push(a + ' ' + ins); }); });
+  return out;
+})());
+var MIDS_ENUM_LADDER = [
+  [_MIDS_INS2], [_MIDS_ALIGNED], [_MIDS_INS2, _MIDS_INS2],
+  [_MIDS_INS2, _MIDS_ALIGNED], [_MIDS_ALIGNED, _MIDS_INS2],
+  [_MIDS_ALIGNS, _MIDS_INS2, _MIDS_INS2], [_MIDS_INS2, _MIDS_INS2, _MIDS_ALIGNS],
+  [_MIDS_ALIGNED, _MIDS_ALIGNED], [_MIDS_INS2, _MIDS_INS2, _MIDS_INS2],
+  [_MIDS_INS2, _MIDS_ALIGNED, _MIDS_INS2], [_MIDS_ALIGNED, _MIDS_INS2, _MIDS_INS2]
+];
+
+/* ---------- поиск ---------- */
+function applyP(state, p) {
+  var tmp = new Array(54);
+  for (var i = 0; i < 54; i++) tmp[p[i]] = state[i];
+  for (var j = 0; j < 54; j++) state[j] = tmp[j];
+  return state;
+}
+function findSeq(state, goalFn, macros, maxDepth, budget) {
+  var bufs = [];
+  for (var b = 0; b <= maxDepth + 1; b++) bufs.push(new Array(54));
+  for (var i0 = 0; i0 < 54; i0++) bufs[0][i0] = state[i0];
+  var seq = [];
+  function applyInto(from, to, p) { for (var i = 0; i < 54; i++) to[p[i]] = from[i]; }
+  function dfs(depth, limit) {
+    budget.n++;
+    if (budget.n > budget.max) throw new Error('BUDGET_EXCEEDED');
+    if (goalFn(bufs[depth])) return true;
+    if (depth === limit) return false;
+    for (var i = 0; i < macros.length; i++) {
+      if (depth > 0 && seq[depth - 1] === i) continue;
+      if (depth > 0 && macros[seq[depth - 1]].lastFace === macros[i].firstFace) continue;
+      applyInto(bufs[depth], bufs[depth + 1], macros[i].perm);
+      seq.push(i);
+      if (dfs(depth + 1, limit)) return true;
+      seq.pop();
+    }
+    return false;
+  }
+  for (var limit = 0; limit <= maxDepth; limit++) {
+    seq.length = 0;
+    if (dfs(0, limit)) {
+      var res = seq.slice();
+      var p = null;
+      res.forEach(function (i) { p = p ? compose2(p, macros[i].perm) : macros[i].perm; });
+      if (p) applyP(state, p);
+      return res;
+    }
+  }
+  return null;
+}
+function findSeqLadder(state, goalFn, ladderArr, budget) {
+  for (var i = 0; i < ladderArr.length; i++) {
+    var step = ladderArr[i];
+    var res = findSeq(state, goalFn, step.macros, step.depth, budget);
+    if (res) return res.map(function (ix) { return step.macros[ix]; });
+  }
+  return null;
+}
+/* Прямой перебор по шаблонам последовательностей (без повторного обхода префиксов) */
+function enumSearch(state, goalFn, positions, budget) {
+  function rec(idx) {
+    if (idx === positions.length) return null;
+    var list = positions[idx];
+    for (var i = 0; i < list.length; i++) {
+      var m = list[i];
+      applyP(state, m.perm);
+      budget.n++;
+      if (budget.n > budget.max) throw new Error('BUDGET_EXCEEDED');
+      if (goalFn(state)) return [m];
+      var sub = rec(idx + 1);
+      if (sub) return [m].concat(sub);
+      applyP(state, m.inv);
+    }
+    return null;
+  }
+  return rec(0);
+}
+
+/* ---------- сборка решения ---------- */
+var LADDERS = {
+  corners: [{ macros: MACS.corners, depth: 4 }, { macros: MACS.cornersU, depth: 5 }, { macros: MACS.cornersD, depth: 5 }, { macros: MACS.cornersBig, depth: 4 }],
+  mids: [{ macros: MACS.mids, depth: 4 }, { macros: MACS.midsBig, depth: 4 }, { macros: MACS.midsU, depth: 5 }, { macros: MACS.midsD, depth: 5 }],
+  ycross: [{ macros: MACS.ycross, depth: 4 }, { macros: MACS.ycrossBig, depth: 4 }, { macros: MACS.ycrossU, depth: 5 }],
+  yedges: [{ macros: MACS.yedges, depth: 4 }, { macros: MACS.yedgesBig, depth: 3 }, { macros: MACS.yedgesU, depth: 5 }, { macros: MACS.yedgesBig, depth: 4 }],
+  pos: [{ macros: MACS.ycornpos, depth: 4 }, { macros: MACS.ycornposBig, depth: 4 }, { macros: MACS.ycornposU, depth: 5 }],
+  ori: [{ macros: MACS.ycornorient, depth: 4 }, { macros: MACS.ycornorientBig, depth: 4 }, { macros: MACS.ycornorientU, depth: 5 }],
+  final: [{ macros: MACS.final, depth: 4 }]
+};
+
+function solve(inputState, opts) {
+  opts = opts || {};
+  var state = inputState.slice();
+  var stages = [], all = [];
+  var budget = { n: 0, max: opts.budget || 60000000 };
+
+  var crossMoves = crossBFS(state);
+  if (crossMoves.length) state = C.applyTokens(state, crossMoves);
+  if (!crossDone(state)) throw new Error('крест не сошёлся');
+  crossMoves = simplifyTokens(crossMoves);
+  stages.push({ name: 'Крест', moves: crossMoves.slice() });
+  all = all.concat(crossMoves);
+
+  function runSequential(title, items) {
+    var got = [];
+    for (var i = 0; i < items.length; i++) {
+      var tb = budget.n, tt = Date.now();
+      var res = findSeqLadder(state, items[i].goal, items[i].ladder, budget);
+      if (opts.trace) opts.trace.push({ stage: title, step: i, ms: Date.now() - tt, nodes: budget.n - tb, found: !!res });
+      if (!res) throw new Error('не решается этап: ' + title + ' (шаг ' + i + ')');
+      var mv = [];
+      for (var j = 0; j < res.length; j++) mv = mv.concat(C.parse(res[j].name));
+      got = got.concat(mv);
+    }
+    got = simplifyTokens(got);
+    stages.push({ name: title, moves: got });
+    all = all.concat(got);
+  }
+
+  var cornersLadder = LADDERS.corners;
+  var midsLadder = LADDERS.mids;
+  var ycrossLadder = LADDERS.ycross;
+  var yedgesLadder = LADDERS.yedges;
+  var posLadder = LADDERS.pos;
+  var oriLadder = LADDERS.ori;
+  var finalLadder = LADDERS.final;
+
+  // 2) верхние углы
+  var cornerItems = [];
+  for (var k = 0; k < 4; k++) (function (kk) {
+    cornerItems.push({
+      ladder: cornersLadder,
+      goal: function (s) {
+        if (!crossDone(s)) return false;
+        for (var t = 0; t <= kk; t++) if (!cornerOk(s, t)) return false;
+        return true;
+      }
+    });
+  })(k);
+  runSequential('Углы верхнего слоя', cornerItems);
+
+  // 3) средние рёбра: двухфазно (сначала в нижний слой, потом вставка)
+  var midsMoves = [];
+  for (var mk = 0; mk < 4; mk++) (function (k) {
+    if (!midOk(state, k)) {
+      var gA = function (s) {
+        if (!crossDone(s) || !allCornersOk(s)) return false;
+        var pos = findEdgeSlot(s, EDGE_COLORS[k][0], EDGE_COLORS[k][1]);
+        return pos !== null && BOTTOM_SLOTS.indexOf(pos) >= 0;
+      };
+      var tbA = budget.n, ttA = Date.now();
+      var rA = findSeqLadder(state, gA, MIDS_A_LADDER, budget);
+      if (opts.trace) opts.trace.push({ stage: 'MidsA', step: k, ms: Date.now() - ttA, nodes: budget.n - tbA, found: !!rA });
+      if (!rA) throw new Error('не решается этап: Средние рёбра (вытащить ' + k + ')');
+      for (var ja = 0; ja < rA.length; ja++) midsMoves = midsMoves.concat(C.parse(rA[ja].name));
+      var gB = function (s) {
+        for (var t = 0; t <= k; t++) if (!midOk(s, t)) return false;
+        return crossDone(s) && allCornersOk(s);
+      };
+      var tbB = budget.n, ttB = Date.now();
+      var rB = null;
+      for (var pi = 0; pi < MIDS_ENUM_LADDER.length && !rB; pi++) {
+        rB = enumSearch(state, gB, MIDS_ENUM_LADDER[pi], budget);
+      }
+      if (!rB) rB = findSeqLadder(state, gB, MIDS_B_LADDER, budget);
+      if (!rB) rB = findSeqLadder(state, gB, midsLadder, budget);
+      if (opts.trace) opts.trace.push({ stage: 'MidsB', step: k, ms: Date.now() - ttB, nodes: budget.n - tbB, found: !!rB });
+      if (!rB) throw new Error('не решается этап: Средние рёбра (вставка ' + k + ')');
+      for (var jb = 0; jb < rB.length; jb++) midsMoves = midsMoves.concat(C.parse(rB[jb].name));
+    }
+  })(mk);
+  stages.push({ name: 'Средние рёбра', moves: simplifyTokens(midsMoves) });
+  all = all.concat(simplifyTokens(midsMoves));
+
+  // 4) жёлтый крест
+  runSequential('Жёлтый крест', [{
+    ladder: ycrossLadder,
+    goal: function (s) { return crossDone(s) && allCornersOk(s) && allMidsOk(s) && yCrossDone(s); }
+  }]);
+
+  // 5) углы нижнего слоя: расстановка
+  var posItems = [];
+  for (var p = 0; p < 4; p++) (function (kk) {
+    posItems.push({
+      ladder: posLadder,
+      goal: function (s) {
+        if (!crossDone(s) || !allCornersOk(s) || !allMidsOk(s)) return false;
+        for (var t = 0; t <= kk; t++) if (!dCornerPosOk(s, t)) return false;
+        return true;
+      }
+    });
+  })(p);
+  runSequential('Углы: расстановка', posItems);
+
+  // 7) углы нижнего слоя: разворот
+  var oriItems = [];
+  for (var q = 0; q < 4; q++) (function (kk) {
+    oriItems.push({
+      ladder: oriLadder,
+      goal: function (s) {
+        if (!crossDone(s) || !allCornersOk(s) || !allMidsOk(s) || !allDPosOk(s)) return false;
+        for (var t = 0; t <= kk; t++) if (!dCornerOk(s, t)) return false;
+        return true;
+      }
+    });
+  })(q);
+  runSequential('Углы: разворот', oriItems);
+
+  // 8) рёбра нижнего слоя (после разворота углов)
+  runSequential('Рёбра нижнего слоя', [{
+    ladder: yedgesLadder,
+    goal: function (s) {
+      if (!crossDone(s) || !allCornersOk(s) || !allMidsOk(s) || !allDPosOk(s)) return false;
+      for (var t = 0; t < 4; t++) if (!dCornerOk(s, t)) return false;
+      return yEdgesDone(s);
+    }
+  }]);
+
+  // 9) финальная доводка
+  if (!C.isSolved(state)) {
+    runSequential('Финал', [{
+      ladder: finalLadder,
+      goal: function (s) { return C.isSolved(s); }
+    }]);
+  }
+  if (!C.isSolved(state)) throw new Error('финал: не собрано (ошибка решателя)');
+  return { stages: stages, moves: all };
+}
+
+return {
+  solve: solve,
+  crossBFS: crossBFS,
+  crossDone: crossDone,
+  extractWhiteEdges: extractWhiteEdges,
+  T: T,
+  MOVES18: MOVES18,
+  _x: {
+    findSeq: findSeq, findSeqLadder: findSeqLadder, MACS: MACS, applyP: applyP, buildMacros: buildMacros,
+    cornerOk: cornerOk, dCornerOk: dCornerOk, midOk: midOk,
+    allCornersOk: allCornersOk, allMidsOk: allMidsOk,
+    yCrossDone: yCrossDone, yEdgesDone: yEdgesDone,
+    dCornerPosOk: dCornerPosOk, allDPosOk: allDPosOk,
+    CORNERS: CORNERS, DCORNERS: DCORNERS,
+    SLOT_NAMES: SLOT_NAMES, SLOT_IDX: SLOT_IDX, slotStickers: slotStickers, slotOfSticker: slotOfSticker,
+    isEdgeSticker: isEdgeSticker, WHITE_PIECES: WHITE_PIECES, LADDERS: LADDERS,
+    MIDS_A_LADDER: MIDS_A_LADDER, MIDS_B_LADDER: MIDS_B_LADDER, findEdgeSlot: findEdgeSlot
+  }
+};
+}));
+
+/* ===== ui.js ===== */
+/* UI страницы-решателя: раскраска развёртки, запуск решателя, пошаговый плеер */
+(function () {
+'use strict';
+var C = window.CubeCore, S = window.CubeSolver;
+var FACEORDER = ['U','R','F','D','L','B'];
+var COLORS = {U:'#f5f5f2', R:'#e2393a', F:'#3aa255', D:'#efcb38', L:'#ef8b2c', B:'#3b76d1'};
+var NAMES = {U:'белый', R:'красный', F:'зелёный', D:'жёлтый', L:'оранжевый', B:'синий'};
+
+var st = {
+  input: new Array(54),
+  selected: 'U',
+  solution: null, // {stages, flat, stageOf}
+  display: null,
+  pos: 0,
+  timer: null,
+  playing: false
+};
+
+function $(id) { return document.getElementById(id); }
+
+function initInput() {
+  for (var i = 0; i < 54; i++) st.input[i] = null;
+  FACEORDER.forEach(function (f) { st.input[C.idx(f,1,1)] = f; });
+}
+
+/* ---------- развёртка ---------- */
+var LAYOUT = [['U',1,2],['L',2,1],['F',2,2],['R',2,3],['B',2,4],['D',3,2]];
+function buildNet() {
+  var net = $('net'); net.innerHTML = '';
+  LAYOUT.forEach(function (cfg) {
+    var f = cfg[0];
+    var face = document.createElement('div');
+    face.className = 'face f' + f;
+    for (var r = 0; r < 3; r++) for (var c = 0; c < 3; c++) {
+      var cell = document.createElement('div');
+      cell.className = 'cell';
+      var i = C.idx(f, r, c);
+      cell.dataset.i = i;
+      if (r === 1 && c === 1) cell.classList.add('fixed');
+      (function (ii) { cell.addEventListener('click', function () { onCell(ii); }); })(i);
+      face.appendChild(cell);
+    }
+    net.appendChild(face);
+  });
+}
+function paintAll() {
+  var arr = st.display || st.input;
+  var cells = document.querySelectorAll('#net .cell');
+  for (var k = 0; k < cells.length; k++) {
+    var el = cells[k];
+    var v = arr[+el.dataset.i];
+    el.style.background = v ? COLORS[v] : '#dcd6c9';
+  }
+}
+function onCell(i) {
+  if ((i % 9) === 4) return; // центры закреплены
+  if (st.solution) clearSolution('Раскладка изменена — нажмите «Решить» заново.');
+  st.input[i] = (st.selected === 'X') ? null : st.selected;
+  paintAll();
+}
+
+/* ---------- палитра ---------- */
+function buildPalette() {
+  var p = $('palette'); p.innerHTML = '';
+  FACEORDER.forEach(function (f) {
+    var s = document.createElement('div');
+    s.className = 'swatch' + (st.selected === f ? ' sel' : '');
+    s.style.background = COLORS[f];
+    s.title = NAMES[f];
+    s.addEventListener('click', function () { st.selected = f; buildPalette(); });
+    p.appendChild(s);
+  });
+  var e = document.createElement('div');
+  e.className = 'swatch eraser' + (st.selected === 'X' ? ' sel' : '');
+  e.textContent = '⌫';
+  e.title = 'стереть';
+  e.addEventListener('click', function () { st.selected = 'X'; buildPalette(); });
+  p.appendChild(e);
+  var lbl = document.createElement('span');
+  lbl.className = 'lbl';
+  lbl.textContent = 'выбран цвет: ' + (st.selected === 'X' ? 'ластик' : NAMES[st.selected]);
+  p.appendChild(lbl);
+}
+
+/* ---------- статус ---------- */
+function setStatus(msg, cls) {
+  var el = $('status');
+  el.className = 'status' + (cls ? ' ' + cls : '');
+  el.innerHTML = msg;
+}
+
+/* ---------- демо и сброс ---------- */
+function demoScramble() {
+  clearSolution();
+  var scr = C.randomScramble(22);
+  var out = C.applyTokens(C.solvedState(), scr);
+  for (var i = 0; i < 54; i++) st.input[i] = out[i];
+  paintAll();
+  setStatus('Пример перемешки готов — нажмите «Решить». (' + scr.length + ' случайных ходов)');
+}
+function resetAll() {
+  clearSolution();
+  initInput();
+  paintAll();
+  setStatus('Развёртка сброшена — заполните клетки заново: выберите цвет и кликайте по развёртке.');
+}
+
+/* ---------- решение ---------- */
+function validate() {
+  var cnt = {}, empty = 0;
+  FACEORDER.forEach(function (f) { cnt[f] = 0; });
+  for (var i = 0; i < 54; i++) {
+    var v = st.input[i];
+    if (!v) empty++; else cnt[v]++;
+  }
+  if (empty > 0) return 'Заполните все клетки: пустых — ' + empty + '.';
+  var bad = [];
+  FACEORDER.forEach(function (f) { if (cnt[f] !== 9) bad.push(NAMES[f] + ': клеток ' + cnt[f] + ' из 9'); });
+  if (bad.length) return 'Проверьте количество цветов — ' + bad.join('; ') + '.';
+  return null;
+}
+function doSolve() {
+  if (st.solution) { setStatus('Решение уже готово ниже. Измените раскладку или нажмите «Сбросить».'); return; }
+  var err = validate();
+  if (err) { setStatus(err, 'error'); return; }
+  setStatus('Считаю решение… это может занять несколько секунд.');
+  $('btnSolve').disabled = true;
+  setTimeout(function () {
+    var res = null, e = null;
+    try { res = S.solve(st.input.slice()); } catch (ex) { e = ex; }
+    $('btnSolve').disabled = false;
+    if (e) {
+      setStatus('Не удалось собрать. Похоже, в раскладке ошибка: перепроверьте цвета, особенно соседние наклейки, и попробуйте снова. (Ориентир: белый центр вверх, зелёный к себе.)', 'error');
+      return;
+    }
+    if (!res.moves.length) { setStatus('Кубик уже собран 🙂', 'ok'); return; }
+    presentSolution(res);
+  }, 50);
+}
+function presentSolution(res) {
+  stopPlay();
+  var stages = res.stages.filter(function (sg) { return sg.moves.length; });
+  var flat = [], stageOf = [];
+  stages.forEach(function (sg, si) {
+    sg.moves.forEach(function (mv) { flat.push(mv); stageOf.push(si); });
+  });
+  st.solution = true;
+  st.stages = stages;
+  st.flat = flat;
+  st.stageOf = stageOf;
+  st.display = st.input.slice();
+  st.pos = 0;
+  renderSolution();
+  paintAll();
+  setStatus('Готово! Решение: ' + flat.length + ' ходов. Жмите ▶ по шагам или включите автопроигрывание.', 'ok');
+  updatePlayer();
+}
+function renderSolution() {
+  var box = $('solution'); box.innerHTML = '';
+  var idx = 0;
+  st.stages.forEach(function (sg) {
+    var d = document.createElement('div'); d.className = 'stage';
+    var t = document.createElement('div'); t.className = 'stage-title';
+    t.textContent = sg.name + ' · ' + sg.moves.length + ' ход.';
+    d.appendChild(t);
+    var mm = document.createElement('div');
+    sg.moves.forEach(function (mv) {
+      var s = document.createElement('span');
+      s.className = 'mv'; s.textContent = mv; s.dataset.k = idx;
+      mm.appendChild(s); idx++;
+    });
+    d.appendChild(mm); box.appendChild(d);
+  });
+  $('player').style.display = '';
+}
+function updatePlayer() {
+  if (!st.flat) return;
+  var chips = document.querySelectorAll('#solution .mv');
+  for (var i = 0; i < chips.length; i++) {
+    var k = +chips[i].dataset.k;
+    chips[i].classList.toggle('cur', k === st.pos);
+    chips[i].classList.toggle('done', k < st.pos);
+  }
+  $('cnt').textContent = 'Ход ' + Math.min(st.pos, st.flat.length) + ' из ' + st.flat.length;
+}
+function stepFwd() {
+  if (!st.flat || st.pos >= st.flat.length) return;
+  C.applyTo(st.display, st.flat[st.pos], false);
+  st.pos++;
+  paintAll(); updatePlayer();
+}
+function stepBack() {
+  if (!st.flat || st.pos <= 0) return;
+  C.applyTo(st.display, st.flat[st.pos - 1], true);
+  st.pos--;
+  paintAll(); updatePlayer();
+}
+function togglePlay() {
+  if (st.playing) { stopPlay(); return; }
+  if (!st.flat) return;
+  if (st.pos >= st.flat.length) { st.pos = 0; st.display = st.input.slice(); paintAll(); updatePlayer(); }
+  st.playing = true;
+  $('btnPlay').textContent = '⏸ Пауза';
+  var spd = +$('speed').value || 420;
+  st.timer = setInterval(function () {
+    if (st.pos >= st.flat.length) {
+      stopPlay();
+      setStatus('Собрано! 🎉', 'ok');
+      return;
+    }
+    stepFwd();
+  }, spd);
+}
+function stopPlay() {
+  st.playing = false;
+  if (st.timer) clearInterval(st.timer);
+  st.timer = null;
+  var b = $('btnPlay'); if (b) b.textContent = '▶ Авто';
+}
+function clearSolution(msg) {
+  stopPlay();
+  st.solution = null; st.flat = null; st.display = null; st.pos = 0; st.stages = null;
+  var box = $('solution');
+  if (box) box.innerHTML = '<div class="note">Заполните раскладку и нажмите «Решить» — здесь появится пошаговое решение.</div>';
+  var pl = $('player'); if (pl) pl.style.display = 'none';
+  paintAll();
+  if (msg) setStatus(msg);
+}
+function copySolution() {
+  if (!st.flat) { setStatus('Сначала получите решение.', 'error'); return; }
+  var lines = st.stages.map(function (sg) { return sg.name + ': ' + sg.moves.join(' '); });
+  var text = lines.join('\n');
+  function done() { setStatus('Решение скопировано в буфер обмена.', 'ok'); }
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text, done); });
+  } else fallbackCopy(text, done);
+}
+function fallbackCopy(text, done) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); } catch (e) {}
+  document.body.removeChild(ta);
+  done();
+}
+
+/* ---------- запуск ---------- */
+function init() {
+  initInput();
+  buildPalette();
+  buildNet();
+  paintAll();
+  clearSolution();
+  setStatus('Выберите цвет и кликните по клеткам развёртки, затем нажмите «Решить». Центры уже стоят; ошибочную клетку сотрите ластиком ⌫.');
+  $('btnScramble').addEventListener('click', demoScramble);
+  $('btnReset').addEventListener('click', resetAll);
+  $('btnSolve').addEventListener('click', doSolve);
+  $('btnFirst').addEventListener('click', function () { stopPlay(); if (st.flat) { st.pos = 0; st.display = st.input.slice(); paintAll(); updatePlayer(); } });
+  $('btnPrev').addEventListener('click', function () { stopPlay(); stepBack(); });
+  $('btnNext').addEventListener('click', function () { stopPlay(); stepFwd(); });
+  $('btnLast').addEventListener('click', function () { stopPlay(); if (st.flat) { while (st.pos < st.flat.length) stepFwd(); } });
+  $('btnPlay').addEventListener('click', togglePlay);
+  $('btnCopy').addEventListener('click', copySolution);
+}
+document.addEventListener('DOMContentLoaded', init);
+})();
+
+
+</script>
+</body>
+</html>
