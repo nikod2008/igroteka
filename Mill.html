@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f3eee1">
+<title>Мельница · «МаТема»</title>
+<style>
+  :root{
+    --bg:#f1e9d8; --paper:#faf7ef; --ink:#2c2721; --soft:#5b5245; --muted:#7a7161;
+    --line:#ded2ba; --wood:#6b5b45; --human:#b4543c; --ai:#3f4a56;
+    --accent:#a8651f;
+    --serif:Georgia,"Times New Roman",serif;
+    --sans:"Segoe UI","Helvetica Neue",Arial,sans-serif;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; background:radial-gradient(120% 80% at 50% -10%, #fdf8ec 0%, #f6efdf 40%, var(--bg) 100%);
+    color:var(--ink); font-family:var(--sans);
+    display:flex; justify-content:center; align-items:flex-start;
+    overflow:hidden; touch-action:manipulation; user-select:none; -webkit-user-select:none;
+  }
+  .app{
+    width:100%; max-width:460px; height:100dvh; max-height:100dvh;
+    padding:calc(8px + env(safe-area-inset-top)) 12px calc(8px + env(safe-area-inset-bottom));
+    display:flex; flex-direction:column; gap:8px;
+  }
+  header{display:flex; align-items:flex-end; justify-content:space-between; gap:10px; flex:0 0 auto}
+  h1{margin:0; font-family:var(--serif); font-weight:400; font-size:clamp(20px,5.6vw,26px); line-height:1}
+  h1 small{display:block; margin-top:4px; font-family:var(--sans); font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--muted)}
+  .scores{display:flex; gap:6px}
+  .score{min-width:58px; padding:5px 8px; text-align:center; background:#fbf6ea; border:1px solid var(--line); border-radius:8px}
+  .score .lbl{font-size:8.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted)}
+  .score .val{font-family:var(--serif); font-size:clamp(15px,4.2vw,18px); line-height:1.15; font-variant-numeric:tabular-nums}
+  .score.me{border-color:#d9a08f}
+  .score.ai{border-color:#9aa6b2}
+
+  .status{
+    flex:0 0 auto; min-height:40px; display:flex; align-items:center; justify-content:center;
+    text-align:center; font-size:13.5px; color:var(--soft); padding:2px 8px;
+  }
+  .status b{color:var(--ink)}
+  .status.warn{color:#8d4738}
+
+  .board-wrap{flex:1 1 auto; display:flex; align-items:center; justify-content:center; min-height:0; position:relative}
+  #board{
+    width:min(100%, 92vw, calc(100dvh - 250px));
+    height:auto; aspect-ratio:1/1;
+    background:linear-gradient(160deg,#efe6d2,#e9dfc9);
+    border:1px solid #d6c9ae; border-radius:14px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.7), 0 10px 24px -18px rgba(80,60,30,.6);
+    touch-action:manipulation;
+  }
+  #board .frame{fill:none; stroke:var(--wood); stroke-width:.055; stroke-linecap:round}
+  #board .spoke{stroke:var(--wood); stroke-width:.05; stroke-linecap:round}
+  #board .pt{fill:#f7f0e0; stroke:var(--wood); stroke-width:.045}
+  #board .piece{stroke:rgba(0,0,0,.18); stroke-width:.02}
+  #board .piece.human{fill:var(--human)}
+  #board .piece.ai{fill:var(--ai)}
+  #board .piece.sel{stroke:var(--accent); stroke-width:.09}
+  #board .hint{fill:none; stroke:var(--accent); stroke-width:.05; stroke-dasharray:.12 .1; opacity:.9}
+  #board .hit{fill:transparent; cursor:pointer}
+  #board .removable{stroke:#c46a2a; stroke-width:.09; stroke-dasharray:.1 .08}
+  #board .lastmove{fill:none; stroke:#8a7a5e; stroke-width:.035; opacity:.8}
+
+  footer{flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; gap:8px; padding-bottom:2px}
+  .hintText{font-size:11px; color:var(--muted); line-height:1.3; max-width:56%}
+  .btns{display:flex; gap:7px}
+  button{
+    font:inherit; font-size:12.5px; padding:9px 13px; border-radius:9px;
+    border:1px solid #cdbf9f; background:#fbf6ea; color:#4a4132; cursor:pointer;
+    touch-action:manipulation; box-shadow:0 1px 0 rgba(255,255,255,.7) inset;
+  }
+  button:active{transform:translateY(1px)}
+  button.primary{background:var(--accent); border-color:var(--accent); color:#fff8ee}
+  button.ghost{background:transparent}
+
+  .overlay{
+    position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; gap:12px;
+    background:rgba(246,240,228,.86); backdrop-filter:blur(2px); -webkit-backdrop-filter:blur(2px);
+    text-align:center; padding:18px; z-index:5; border-radius:14px;
+  }
+  .overlay.show{display:flex; animation:fade .2s ease-out}
+  @keyframes fade{from{opacity:0} to{opacity:1}}
+  .overlay h2{margin:0; font-family:var(--serif); font-weight:400; font-size:clamp(20px,5.4vw,25px)}
+  .overlay p{margin:0; color:var(--soft); font-size:13px; max-width:26ch}
+
+  details.rules{flex:0 0 auto; font-size:11.5px; color:var(--muted)}
+  details.rules summary{cursor:pointer; list-style:none}
+  details.rules summary::-webkit-details-marker{display:none}
+  details.rules summary::before{content:"▸ "; color:var(--accent)}
+  details.rules[open] summary::before{content:"▾ "}
+  details.rules p{margin:6px 0 0; line-height:1.45}
+
+  @media (max-height:640px){
+    h1{font-size:19px} h1 small{display:none}
+    .status{min-height:32px; font-size:12.5px}
+    .hintText{font-size:10px}
+    button{padding:7px 11px; font-size:12px}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Мельница<small>«МаТема» · игра</small></h1>
+    <div class="scores">
+      <div class="score me"><div class="lbl">Вы</div><div class="val" id="scoreMe">9</div></div>
+      <div class="score ai"><div class="lbl" id="aiLabel">Бот</div><div class="val" id="scoreAi">9</div></div>
+    </div>
+  </header>
+
+  <div class="status" id="status">Ваш ход: поставьте фишку на любую точку.</div>
+
+  <div class="board-wrap">
+    <svg id="board" viewBox="-0.45 -0.45 7.9 7.9" aria-label="Доска мельницы">
+      <g id="lines"></g>
+      <g id="pieces"></g>
+      <g id="hits"></g>
+    </svg>
+    <div class="overlay" id="overlay">
+      <h2 id="ovTitle">Партия окончена</h2>
+      <p id="ovText"></p>
+      <button class="primary" id="ovBtn" type="button">Ещё раз</button>
+    </div>
+  </div>
+
+  <footer>
+    <div class="hintText" id="hintText">Тапните точку, чтобы поставить фишку.</div>
+    <div class="btns">
+      <button type="button" class="ghost" id="modeBtn">Вдвоём</button>
+      <button type="button" class="primary" id="restart">Заново</button>
+    </div>
+  </footer>
+
+  <details class="rules">
+    <summary>Правила</summary>
+    <p>По девять фишек. Сначала выставляете по одной, потом двигаете на соседнюю точку. Три в ряд — мельница: снимаете фишку соперника. Проигрывает тот, у кого осталось две фишки или нечем ходить. Когда у игрока остаются три фишки, он может ходить на любую свободную точку.</p>
+  </details>
+</div>
+
+<script id="morris-core">
+(function (root) {
+  'use strict';
+
+  var RINGS = [
+    [[0,0],[0,3],[0,6],[3,6],[6,6],[6,3],[6,0],[3,0]],
+    [[1,1],[1,3],[1,5],[3,5],[5,5],[5,3],[5,1],[3,1]],
+    [[2,2],[2,3],[2,4],[3,4],[4,4],[4,3],[4,2],[3,2]]
+  ];
+  var SPOKES = [
+    [[0,3],[1,3],[2,3]],
+    [[3,6],[3,5],[3,4]],
+    [[6,3],[5,3],[4,3]],
+    [[3,0],[3,1],[3,2]]
+  ];
+
+  var POINTS = [], KEY = {}, ADJ = [], MILLS = [], LINES_BY_POINT = [];
+
+  RINGS.forEach(function (ring) {
+    ring.forEach(function (p) {
+      KEY[p[0] + ',' + p[1]] = POINTS.length;
+      POINTS.push(p);
+    });
+  });
+  SPOKES.forEach(function (sp) {
+    sp.forEach(function (p) {
+      if (KEY[p[0] + ',' + p[1]] === undefined) {
+        KEY[p[0] + ',' + p[1]] = POINTS.length;
+        POINTS.push(p);
+      }
+    });
+  });
+
+  for (var i = 0; i < POINTS.length; i++) { ADJ.push([]); LINES_BY_POINT.push([]); }
+
+  function link(a, b) {
+    if (ADJ[a].indexOf(b) < 0) ADJ[a].push(b);
+    if (ADJ[b].indexOf(a) < 0) ADJ[b].push(a);
+  }
+
+  RINGS.forEach(function (ring) {
+    var idx = ring.map(function (p) { return KEY[p[0] + ',' + p[1]]; });
+    for (var i = 0; i < idx.length; i++) link(idx[i], idx[(i + 1) % idx.length]);
+    var lines = [[0, 1, 2], [2, 3, 4], [4, 5, 6], [6, 7, 0]];
+    lines.forEach(function (tri) {
+      var m = tri.map(function (k) { return idx[k]; });
+      MILLS.push(m);
+      m.forEach(function (p) { LINES_BY_POINT[p].push(m); });
+    });
+  });
+
+  SPOKES.forEach(function (sp) {
+    var m = sp.map(function (p) { return KEY[p[0] + ',' + p[1]]; });
+    link(m[0], m[1]); link(m[1], m[2]);
+    MILLS.push(m);
+    m.forEach(function (p) { LINES_BY_POINT[p].push(m); });
+  });
+
+  function newState() {
+    var board = new Array(POINTS.length).fill(0);
+    return {
+      board: board,
+      turn: 1,
+      hand: { 1: 9, 2: 9 },
+      onBoard: { 1: 0, 2: 0 },
+      mustRemove: 0,
+      winner: 0,
+      lastMove: null,
+      phase: 'place'
+    };
+  }
+
+  function clone(s) {
+    return {
+      board: s.board.slice(),
+      turn: s.turn,
+      hand: { 1: s.hand[1], 2: s.hand[2] },
+      onBoard: { 1: s.onBoard[1], 2: s.onBoard[2] },
+      mustRemove: s.mustRemove,
+      winner: s.winner,
+      lastMove: s.lastMove,
+      phase: s.phase
+    };
+  }
+
+  function inMill(board, p, player) {
+    var lines = LINES_BY_POINT[p] || [];
+    for (var i = 0; i < lines.length; i++) {
+      var m = lines[i];
+      if (board[m[0]] === player && board[m[1]] === player && board[m[2]] === player) return true;
+    }
+    return false;
+  }
+
+  function millsFormed(board, p, player) {
+    var n = 0, lines = LINES_BY_POINT[p] || [];
+    for (var i = 0; i < lines.length; i++) {
+      var m = lines[i];
+      if (board[m[0]] === player && board[m[1]] === player && board[m[2]] === player) n++;
+    }
+    return n;
+  }
+
+  function removable(state, opp) {
+    var all = [], free = [];
+    for (var i = 0; i < state.board.length; i++) {
+      if (state.board[i] === opp) {
+        all.push(i);
+        if (!inMill(state.board, i, opp)) free.push(i);
+      }
+    }
+    return free.length ? free : all;
+  }
+
+  function place(state, p) {
+    if (state.board[p] !== 0 || state.hand[state.turn] <= 0) return false;
+    state.board[p] = state.turn;
+    state.hand[state.turn]--;
+    state.onBoard[state.turn]++;
+    state.lastMove = { type: 'place', to: p };
+    var formed = millsFormed(state.board, p, state.turn);
+    if (formed > 0) state.mustRemove = state.turn;
+    else state.turn = 3 - state.turn;
+    state.phase = (state.hand[1] + state.hand[2] > 0) ? 'place' : 'move';
+    checkEnd(state);
+    return true;
+  }
+
+  function canFly(state, player) {
+    return state.hand[player] === 0 && state.onBoard[player] === 3;
+  }
+
+  function legalMoves(state, player) {
+    var out = [], i, j;
+    if (state.hand[player] > 0) {
+      for (i = 0; i < state.board.length; i++) if (state.board[i] === 0) out.push([null, i]);
+      return out;
+    }
+    var fly = canFly(state, player);
+    for (i = 0; i < state.board.length; i++) {
+      if (state.board[i] !== player) continue;
+      if (fly) {
+        for (j = 0; j < state.board.length; j++) if (state.board[j] === 0) out.push([i, j]);
+      } else {
+        ADJ[i].forEach(function (k) { if (state.board[k] === 0) out.push([i, k]); });
+      }
+    }
+    return out;
+  }
+
+  function movePiece(state, from, to) {
+    if (state.board[from] !== state.turn || state.board[to] !== 0) return false;
+    var fly = canFly(state, state.turn);
+    if (!fly && ADJ[from].indexOf(to) < 0) return false;
+    state.board[from] = 0;
+    state.board[to] = state.turn;
+    state.lastMove = { type: 'move', from: from, to: to };
+    var formed = millsFormed(state.board, to, state.turn);
+    if (formed > 0) state.mustRemove = state.turn;
+    else state.turn = 3 - state.turn;
+    checkEnd(state);
+    return true;
+  }
+
+  function remove(state, p) {
+    var opp = 3 - state.turn;
+    if (state.board[p] !== opp) return false;
+    if (removable(state, opp).indexOf(p) < 0) return false;
+    state.board[p] = 0;
+    state.onBoard[opp]--;
+    state.mustRemove = 0;
+    state.turn = opp;
+    checkEnd(state);
+    return true;
+  }
+
+  function hasMoves(state, player) {
+    return legalMoves(state, player).length > 0;
+  }
+
+  function checkEnd(state) {
+    if (state.winner) return;
+    for (var pl = 1; pl <= 2; pl++) {
+      if (state.onBoard[pl] + state.hand[pl] < 3) { state.winner = 3 - pl; return; }
+      if (state.hand[pl] === 0 && state.onBoard[pl] === 3) continue;
+      if (state.hand[pl] === 0 && !hasMoves(state, pl)) { state.winner = 3 - pl; return; }
+    }
+  }
+
+  root.Morris = {
+    POINTS: POINTS, ADJ: ADJ, MILLS: MILLS, LINES_BY_POINT: LINES_BY_POINT, KEY: KEY,
+    newState: newState, clone: clone, place: place, movePiece: movePiece, remove: remove,
+    legalMoves: legalMoves, canFly: canFly, removable: removable,
+    inMill: inMill, millsFormed: millsFormed, checkEnd: checkEnd, hasMoves: hasMoves
+  };
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+
+<script>
+(function () {
+  'use strict';
+  var M = window.Morris;
+
+  var state = M.newState();
+  var mode = 'ai';              // 'ai' | 'two'
+  var selected = null;
+  var busy = false;
+
+  var boardEl = document.getElementById('board');
+  var linesEl = document.getElementById('lines');
+  var piecesEl = document.getElementById('pieces');
+  var hitsEl = document.getElementById('hits');
+  var statusEl = document.getElementById('status');
+  var hintEl = document.getElementById('hintText');
+  var scoreMe = document.getElementById('scoreMe');
+  var scoreAi = document.getElementById('scoreAi');
+  var aiLabel = document.getElementById('aiLabel');
+  var overlay = document.getElementById('overlay');
+  var ovTitle = document.getElementById('ovTitle');
+  var ovText = document.getElementById('ovText');
+  var ovBtn = document.getElementById('ovBtn');
+
+  var NS = 'http://www.w3.org/2000/svg';
+
+  function el(name, attrs) {
+    var e = document.createElementNS(NS, name);
+    for (var k in attrs) if (Object.prototype.hasOwnProperty.call(attrs, k)) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+
+  function buildBoard() {
+    linesEl.innerHTML = '';
+    linesEl.appendChild(el('rect', { x: 0, y: 0, width: 6, height: 6, rx: 0.06, 'class': 'frame' }));
+    linesEl.appendChild(el('rect', { x: 1, y: 1, width: 4, height: 4, 'class': 'frame' }));
+    linesEl.appendChild(el('rect', { x: 2, y: 2, width: 2, height: 2, 'class': 'frame' }));
+    [[[3,0],[3,2]], [[3,4],[3,6]], [[0,3],[2,3]], [[4,3],[6,3]]].forEach(function (seg) {
+      linesEl.appendChild(el('line', { x1: seg[0][0], y1: seg[0][1], x2: seg[1][0], y2: seg[1][1], 'class': 'spoke' }));
+    });
+  }
+
+  function drawPieces() {
+    piecesEl.innerHTML = '';
+    var rem = state.mustRemove ? M.removable(state, 3 - state.turn) : [];
+
+    state.board.forEach(function (v, i) {
+      var p = M.POINTS[i];
+      if (!v) {
+        piecesEl.appendChild(el('circle', { cx: p[0], cy: p[1], r: 0.11, 'class': 'pt' }));
+        return;
+      }
+      var cls = 'piece ' + (v === 1 ? 'human' : 'ai');
+      if (selected === i) cls += ' sel';
+      piecesEl.appendChild(el('circle', { cx: p[0], cy: p[1], r: 0.3, 'class': cls }));
+      piecesEl.appendChild(el('circle', { cx: p[0] - 0.07, cy: p[1] - 0.08, r: 0.07, fill: 'rgba(255,255,255,.35)' }));
+      if (rem.indexOf(i) >= 0) {
+        piecesEl.appendChild(el('circle', { cx: p[0], cy: p[1], r: 0.37, 'class': 'removable' }));
+      }
+    });
+
+    // подсказки: куда можно поставить или сходить
+    if (!state.mustRemove && state.winner === 0) {
+      var me = state.turn;
+      var isHumanTurn = (mode === 'two') || me === 1;
+      if (isHumanTurn) {
+        if (selected === null && state.hand[me] > 0) {
+          state.board.forEach(function (v, i) {
+            if (!v) piecesEl.appendChild(el('circle', { cx: M.POINTS[i][0], cy: M.POINTS[i][1], r: 0.2, 'class': 'hint' }));
+          });
+        } else if (selected !== null) {
+          var fly = M.canFly(state, me);
+          M.ADJ[selected].concat(fly ? state.board.map(function (_, k) { return k; }) : []).forEach(function (k) {
+            if (state.board[k] === 0) {
+              piecesEl.appendChild(el('circle', { cx: M.POINTS[k][0], cy: M.POINTS[k][1], r: 0.2, 'class': 'hint' }));
+            }
+          });
+        }
+      }
+    }
+  }
+
+  function buildHits() {
+    hitsEl.innerHTML = '';
+    M.POINTS.forEach(function (p, i) {
+      var c = el('circle', { cx: p[0], cy: p[1], r: 0.42, 'class': 'hit' });
+      c.addEventListener('click', function () { onPoint(i); });
+      hitsEl.appendChild(c);
+    });
+  }
+
+  function render() {
+    drawPieces();
+    scoreMe.textContent = state.onBoard[1] + state.hand[1];
+    scoreAi.textContent = state.onBoard[2] + state.hand[2];
+    aiLabel.textContent = (mode === 'ai') ? 'Бот' : 'Второй';
+  }
+
+  function say(text, warn) {
+    statusEl.innerHTML = text;
+    statusEl.className = 'status' + (warn ? ' warn' : '');
+  }
+
+  function describeTurn() {
+    if (state.winner) return;
+    var human = (mode === 'two') || state.turn === 1;
+    if (state.mustRemove) {
+      say(human ? 'Мельница! Снимите фишку соперника.' : 'Бот собирает мельницу…');
+      hintEl.textContent = human ? 'Тапните по фишке, которую снимаете.' : 'Подождите ход бота.';
+      return;
+    }
+    if (state.hand[state.turn] > 0) {
+      say(human ? 'Ваш ход: поставьте фишку.' : 'Бот ставит фишку…');
+      hintEl.textContent = 'Тапните по свободной точке.';
+    } else if (M.canFly(state, state.turn)) {
+      say(human ? 'У вас три фишки — можно на любую точку.' : 'Бот может прыгать по полю…');
+      hintEl.textContent = 'Тапните фишку, потом точку.';
+    } else {
+      say(human ? 'Ваш ход: двигайте фишку.' : 'Бот думает…');
+      hintEl.textContent = 'Тапните фишку, потом соседнюю точку.';
+    }
+  }
+
+  function onPoint(i) {
+    if (busy || state.winner) return;
+    var humanTurn = (mode === 'two') || state.turn === 1;
+    if (!humanTurn) return;
+
+    if (state.mustRemove) {
+      if (M.remove(state, i)) {
+        selected = null;
+        afterMove();
+      } else {
+        say('Эту фишку снимать нельзя: она в мельнице.', true);
+      }
+      return;
+    }
+
+    if (state.hand[state.turn] > 0) {
+      if (state.board[i] === 0) {
+        M.place(state, i);
+        selected = null;
+        afterMove();
+      }
+      return;
+    }
+
+    if (state.board[i] === state.turn) {
+      selected = (selected === i) ? null : i;
+      drawPieces();
+      return;
+    }
+
+    if (selected !== null && state.board[i] === 0) {
+      if (M.movePiece(state, selected, i)) {
+        selected = null;
+        afterMove();
+      } else {
+        say('Фишка ходит только на соседнюю точку.', true);
+      }
+    }
+  }
+
+  function afterMove() {
+    render();
+    if (state.winner) { finish(); return; }
+    describeTurn();
+    if (mode === 'ai' && state.turn === 2) {
+      busy = true;
+      setTimeout(aiTurn, 320);
+    }
+  }
+
+  function finish() {
+    var humanWon = state.winner === 1;
+    var title, text;
+    if (mode === 'two') {
+      title = humanWon ? 'Победа первого' : 'Победа второго';
+      text = 'Партия окончена.';
+    } else {
+      title = humanWon ? 'Вы победили' : 'Бот победил';
+      text = humanWon ? 'У соперника не осталось ходов.' : 'Попробуйте ещё раз — начните с центральных точек.';
+    }
+    ovTitle.textContent = title;
+    ovText.textContent = text;
+    overlay.classList.add('show');
+    say(title + '.', !humanWon);
+    hintEl.textContent = 'Нажмите «Заново», чтобы сыграть ещё.';
+  }
+
+  // ---------- бот ----------
+  function scorePlacement(s, p, me) {
+    var opp = 3 - me, sc = 0;
+    var b = s.board.slice();
+    b[p] = me;
+    sc += M.millsFormed(b, p, me) * 120;
+    // сколько линий почти собрано
+    (M.LINES_BY_POINT[p] || []).forEach(function (m) {
+      var mine = 0, empty = 0, theirs = 0;
+      m.forEach(function (k) { if (b[k] === me) mine++; else if (b[k] === 0) empty++; else theirs++; });
+      if (mine === 2 && empty === 1) sc += 12;
+      if (theirs === 2 && empty === 1) sc -= 14;
+    });
+    // блокируем сборку соперника на этой точке
+    var bOpp = s.board.slice();
+    bOpp[p] = opp;
+    sc -= M.millsFormed(bOpp, p, opp) * 60;
+    // центральные точки чуть ценнее
+    var pt = M.POINTS[p];
+    if (pt[0] === 3 || pt[1] === 3) sc += 2;
+    return sc;
+  }
+
+  function bestRemoval(s, me) {
+    var opp = 3 - me;
+    var list = M.removable(s, opp);
+    var best = list[0], bestScore = -1e9;
+    list.forEach(function (p) {
+      var score = 0;
+      (M.LINES_BY_POINT[p] || []).forEach(function (m) {
+        var theirs = 0;
+        m.forEach(function (k) { if (s.board[k] === opp) theirs++; });
+        if (theirs === 3) score += 25;      // ломаем мельницу
+        else if (theirs === 2) score += 8;  // ломаем заготовку
+      });
+      score += Math.random();
+      if (score > bestScore) { bestScore = score; best = p; }
+    });
+    return best;
+  }
+
+  function aiTurn() {
+    if (state.winner) { busy = false; return; }
+    var me = 2;
+
+    if (state.mustRemove === me) {
+      var victim = bestRemoval(state, me);
+      M.remove(state, victim);
+      busy = false;
+      afterMove();
+      return;
+    }
+
+    if (state.hand[me] > 0) {
+      var bestP = -1, bestSc = -1e9;
+      for (var i = 0; i < state.board.length; i++) {
+        if (state.board[i] !== 0) continue;
+        var sc = scorePlacement(state, i, me) + Math.random();
+        if (sc > bestSc) { bestSc = sc; bestP = i; }
+      }
+      M.place(state, bestP);
+      busy = false;
+      afterMove();
+      return;
+    }
+
+    var moves = M.legalMoves(state, me), best = null, bestVal = -1e9;
+    moves.forEach(function (mv) {
+      var s2 = M.clone(state);
+      var from = mv[0], to = mv[1];
+      if (from !== null) { s2.board[from] = 0; }
+      s2.board[to] = me;
+      var val = M.millsFormed(s2.board, to, me) * 120;
+      (M.LINES_BY_POINT[to] || []).forEach(function (m) {
+        var mine = 0, empty = 0, theirs = 0;
+        m.forEach(function (k) { if (s2.board[k] === me) mine++; else if (s2.board[k] === 0) empty++; else theirs++; });
+        if (mine === 2 && empty === 1) val += 10;
+        if (theirs === 2 && empty === 1) val -= 12;
+      });
+      // не подставляться: если после хода у соперника появится мельница
+      val += Math.random();
+      if (val > bestVal) { bestVal = val; best = mv; }
+    });
+
+    if (best) {
+      if (best[0] === null) M.place(state, best[1]);
+      else M.movePiece(state, best[0], best[1]);
+    }
+    busy = false;
+    afterMove();
+  }
+
+  // ---------- управление ----------
+  function newGame() {
+    state = M.newState();
+    selected = null;
+    busy = false;
+    overlay.classList.remove('show');
+    render();
+    describeTurn();
+    if (mode === 'ai' && state.turn === 2) { busy = true; setTimeout(aiTurn, 350); }
+  }
+
+  document.getElementById('restart').addEventListener('click', newGame);
+  ovBtn.addEventListener('click', newGame);
+  document.getElementById('modeBtn').addEventListener('click', function () {
+    mode = (mode === 'ai') ? 'two' : 'ai';
+    this.textContent = (mode === 'ai') ? 'Вдвоём' : 'С ботом';
+    newGame();
+  });
+
+  buildBoard();
+  buildHits();
+  newGame();
+})();
+</script>
+</body>
+</html>
