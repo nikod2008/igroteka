@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f3eee1">
+<title>МаТема · Восемь ферзей</title>
+<style>
+  :root{
+    --cream:#faf7ef;
+    --bg:#f3eee1;
+    --light:#f3ead8;
+    --dark:#b09a7a;
+    --frame:#78654c;
+    --ink:#2c2721;
+    --soft:#544c41;
+    --muted:#7b7264;
+    --accent:#963e2a;
+    --accent-deep:#7c1f12;
+    --line:#e1d7c4;
+    --board: min(92vw, calc(100dvh - 300px), 430px);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    -webkit-tap-highlight-color:transparent;
+    display:flex;
+    justify-content:center;
+    padding:calc(10px + env(safe-area-inset-top)) 12px calc(10px + env(safe-area-inset-bottom));
+    touch-action:manipulation;
+  }
+  .app{
+    width:100%;
+    max-width:460px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:10px;
+  }
+  header{text-align:center;width:100%}
+  .kicker{
+    margin:0 0 4px;
+    font-size:10.5px;
+    letter-spacing:.16em;
+    text-transform:uppercase;
+    color:var(--muted);
+  }
+  h1{
+    margin:0 0 3px;
+    font-family:Georgia,"Times New Roman",serif;
+    font-weight:400;
+    font-size:clamp(21px,6vw,26px);
+    line-height:1.15;
+    letter-spacing:.01em;
+  }
+  .sub{margin:0;font-size:12.5px;color:var(--soft)}
+
+  .board-wrap{
+    width:var(--board);
+    padding:7px;
+    background:var(--frame);
+    border-radius:6px;
+    box-shadow:0 1px 0 rgba(0,0,0,.06);
+    transition:box-shadow .3s ease;
+  }
+  .board-wrap.win{box-shadow:0 0 0 3px rgba(150,62,42,.35), 0 6px 18px rgba(150,62,42,.18)}
+  .board{
+    display:grid;
+    grid-template-columns:repeat(var(--n), minmax(0, 1fr));
+    grid-template-rows:repeat(var(--n), minmax(0, 1fr));
+    aspect-ratio:1/1;
+    width:100%;
+    background:var(--light);
+    overflow:hidden;
+    border-radius:3px;
+  }
+  .cell{
+    position:relative;
+    border:0;
+    padding:0;
+    margin:0;
+    min-width:0;
+    min-height:0;
+    overflow:hidden;
+    background:var(--light);
+    display:grid;
+    place-items:center;
+    cursor:pointer;
+    touch-action:manipulation;
+  }
+  .cell:focus,
+  .cell:focus-visible{
+    outline:none;
+    box-shadow:none;
+  }
+  .cell.dark{background:var(--dark)}
+  .cell:active{filter:brightness(.95)}
+  .cell.atk::before{
+    content:"";
+    position:absolute;
+    width:15%;
+    aspect-ratio:1/1;
+    left:50%;
+    top:50%;
+    transform:translate(-50%,-50%);
+    border-radius:50%;
+    background:transparent;
+    pointer-events:none;
+  }
+  .cell.conflict::after{
+    content:"";
+    position:absolute;
+    inset:2px;
+    border:2.5px solid var(--accent-deep);
+    border-radius:2px;
+    pointer-events:none;
+  }
+  .q{
+    position:relative;
+    display:block;
+    width:62%;
+    height:62%;
+    max-width:62%;
+    max-height:62%;
+    fill:var(--accent);
+    pointer-events:none;
+  }
+  .cell.conflict .q{fill:var(--accent-deep)}
+
+  .status{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    font-size:13px;
+    color:var(--soft);
+    min-height:20px;
+    text-align:center;
+    flex-wrap:wrap;
+    justify-content:center;
+  }
+  .counter{
+    font-variant-numeric:tabular-nums;
+    border:1px solid var(--line);
+    background:var(--cream);
+    border-radius:999px;
+    padding:2px 10px;
+    font-size:12.5px;
+    color:var(--ink);
+  }
+  .status.good{color:#2f5d3a}
+  .status.bad{color:var(--accent-deep)}
+
+  .sizes{display:flex;gap:6px;justify-content:center;flex-wrap:wrap}
+  .size{
+    border:1px solid var(--line);
+    background:var(--cream);
+    color:var(--soft);
+    border-radius:999px;
+    padding:6px 12px;
+    font-size:12.5px;
+    font-variant-numeric:tabular-nums;
+    cursor:pointer;
+  }
+  .size[aria-pressed="true"]{
+    border-color:var(--accent);
+    color:var(--accent-deep);
+    background:#f7ece2;
+  }
+
+  .actions{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+    width:var(--board);
+  }
+  button.action{
+    font-family:inherit;
+    font-size:14px;
+    padding:12px 10px;
+    border-radius:10px;
+    border:1px solid var(--line);
+    background:var(--cream);
+    color:var(--ink);
+    cursor:pointer;
+  }
+  button.action.primary{
+    background:var(--accent);
+    border-color:var(--accent);
+    color:#fff5ee;
+  }
+  button.action:active{transform:translateY(1px)}
+  .note{
+    margin:0;
+    font-size:12px;
+    color:var(--muted);
+    text-align:center;
+    min-height:32px;
+    max-width:var(--board);
+  }
+  footer{
+    font-size:10.5px;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:var(--muted);
+    opacity:.8;
+    padding-bottom:4px;
+  }
+  @media (max-height:700px){
+    :root{--board: min(86vw, calc(100dvh - 250px), 360px)}
+    .note{display:none}
+  }
+</style>
+</head>
+<body>
+<main class="app">
+  <header>
+    <p class="kicker">МаТема · Игротека</p>
+    <h1>Восемь ферзей</h1>
+    <p class="sub">Расставьте так, чтобы никто не бил другого</p>
+  </header>
+
+  <div class="board-wrap" id="wrap">
+    <div class="board" id="board" role="grid" aria-label="Шахматная доска"></div>
+  </div>
+
+  <div class="status" id="status" aria-live="polite">
+    <span class="counter" id="counter">0 / 8</span>
+    <span id="msg">Касайтесь клеток, чтобы ставить ферзей</span>
+  </div>
+
+  <div class="sizes" id="sizes" role="group" aria-label="Размер доски"></div>
+
+  <div class="actions">
+    <button class="action primary" id="hint" type="button">Подсказка</button>
+    <button class="action" id="reset" type="button">Сброс</button>
+  </div>
+
+  <p class="note" id="note">Ферзь бьёт по строке, столбцу и диагоналям. Клетки под боем подсвечены.</p>
+
+  <footer>#Игротека · МаТема</footer>
+</main>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="queen" viewBox="0 0 24 24">
+    <path d="M12 2.2a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z"/>
+    <path d="M3.4 6.2a1.4 1.4 0 1 1 0 2.8 1.4 1.4 0 0 1 0-2.8z"/>
+    <path d="M20.6 6.2a1.4 1.4 0 1 1 0 2.8 1.4 1.4 0 0 1 0-2.8z"/>
+    <path d="M3.6 16.4 2.4 9.6l4.4 3.5L12 4.8l5.2 8.3 4.4-3.5-1.2 6.8z"/>
+    <path d="M4.4 17.6h15.2l.9 3H3.5z"/>
+  </symbol>
+</svg>
+
+<script>
+(function () {
+  "use strict";
+
+  var boardEl = document.getElementById("board");
+  var wrapEl = document.getElementById("wrap");
+  var statusEl = document.getElementById("status");
+  var counterEl = document.getElementById("counter");
+  var msgEl = document.getElementById("msg");
+  var sizesEl = document.getElementById("sizes");
+  var noteEl = document.getElementById("note");
+
+  var SIZES = [4, 5, 6, 7, 8];
+  var DEFAULT_NOTE = noteEl.textContent;
+  var n = 8;
+  var queens = [];          // массив индексов клеток
+  var cells = [];           // кнопки
+
+  function key(r, c) { return r * n + c; }
+
+  function queenWord(k) {
+    var d = k % 10, h = k % 100;
+    if (d === 1 && h !== 11) return "ферзь";
+    if (d >= 2 && d <= 4 && !(h >= 12 && h <= 14)) return "ферзя";
+    return "ферзей";
+  }
+
+  function buildSizeChips() {
+    sizesEl.innerHTML = "";
+    SIZES.forEach(function (size) {
+      var b = document.createElement("button");
+      b.type = "button";
+      b.className = "size";
+      b.textContent = size + " × " + size;
+      b.setAttribute("aria-pressed", String(size === n));
+      b.addEventListener("click", function () {
+        if (size === n) return;
+        n = size;
+        queens = [];
+        noteEl.textContent = DEFAULT_NOTE;
+        buildBoard();
+        buildSizeChips();
+        render("Доска " + n + " × " + n + ". Ставьте ферзей.");
+      });
+      sizesEl.appendChild(b);
+    });
+  }
+
+  function buildBoard() {
+    boardEl.innerHTML = "";
+    boardEl.style.setProperty("--n", n);
+    cells = [];
+    for (var r = 0; r < n; r++) {
+      for (var c = 0; c < n; c++) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.className = "cell" + (((r + c) % 2) ? " dark" : "");
+        b.dataset.r = r;
+        b.dataset.c = c;
+        b.setAttribute("role", "gridcell");
+        b.setAttribute("aria-label", "Строка " + (r + 1) + ", столбец " + (c + 1));
+        b.addEventListener("click", onCell);
+        boardEl.appendChild(b);
+        cells.push(b);
+      }
+    }
+  }
+
+  function onCell(e) {
+    var r = +e.currentTarget.dataset.r;
+    var c = +e.currentTarget.dataset.c;
+    var k = key(r, c);
+    var i = queens.indexOf(k);
+    if (i >= 0) queens.splice(i, 1);
+    else queens.push(k);
+    render();
+  }
+
+  function attackedSet() {
+    var atk = new Set();
+    queens.forEach(function (k) {
+      var qr = Math.floor(k / n), qc = k % n;
+      for (var r = 0; r < n; r++) {
+        for (var c = 0; c < n; c++) {
+          if (r === qr && c === qc) continue;
+          if (r === qr || c === qc || Math.abs(r - qr) === Math.abs(c - qc)) atk.add(key(r, c));
+        }
+      }
+    });
+    return atk;
+  }
+
+  function conflictSet() {
+    var bad = new Set();
+    for (var i = 0; i < queens.length; i++) {
+      for (var j = i + 1; j < queens.length; j++) {
+        var a = queens[i], b = queens[j];
+        var ar = Math.floor(a / n), ac = a % n, br = Math.floor(b / n), bc = b % n;
+        if (ar === br || ac === bc || Math.abs(ar - br) === Math.abs(ac - bc)) {
+          bad.add(a); bad.add(b);
+        }
+      }
+    }
+    return bad;
+  }
+
+  function render(text) {
+    var atk = attackedSet();
+    var bad = conflictSet();
+    var qset = new Set(queens);
+
+    cells.forEach(function (cell, idx) {
+      cell.classList.toggle("atk", atk.has(idx) && !qset.has(idx));
+      cell.classList.toggle("conflict", bad.has(idx));
+      var has = qset.has(idx);
+      var existing = cell.querySelector(".q");
+      if (has && !existing) {
+        var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svg.setAttribute("class", "q");
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("aria-hidden", "true");
+        var use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+        use.setAttribute("href", "#queen");
+        svg.appendChild(use);
+        cell.appendChild(svg);
+      } else if (!has && existing) {
+        existing.remove();
+      }
+    });
+
+    var full = queens.length === n;
+    var clean = bad.size === 0;
+    counterEl.textContent = queens.length + " / " + n;
+    wrapEl.classList.toggle("win", full && clean);
+
+    statusEl.classList.remove("good", "bad");
+    if (full && clean) {
+      statusEl.classList.add("good");
+      msgEl.textContent = "Готово: " + n + " " + queenWord(n) + ", ни одного боя";
+    } else if (!clean) {
+      statusEl.classList.add("bad");
+      var pairs = bad.size / 2;
+      msgEl.textContent = pairs === 1
+        ? "Двое бьют друг друга — снимите одного"
+        : "Бьют друг друга: " + pairs + " пар — снимите лишних";
+    } else if (text) {
+      msgEl.textContent = text;
+    } else if (full) {
+      msgEl.textContent = "Все " + n + " на месте";
+    } else {
+      msgEl.textContent = "Осталось поставить: " + (n - queens.length);
+    }
+  }
+
+  // поиск решения, совместимого с уже стоящими ферзями
+  function solve() {
+    var fixed = {};
+    for (var i = 0; i < queens.length; i++) {
+      var r = Math.floor(queens[i] / n), c = queens[i] % n;
+      if (fixed[r] !== undefined && fixed[r] !== c) return null; // два ферзя в строке
+      fixed[r] = c;
+    }
+    var cols = [], d1 = {}, d2 = {}, out = [];
+
+    function place(row) {
+      if (row === n) return true;
+      var options = fixed[row] !== undefined ? [fixed[row]] : range(n);
+      for (var i = 0; i < options.length; i++) {
+        var c = options[i];
+        if (cols.indexOf(c) >= 0) continue;
+        if (d1[row + c] || d2[row - c + n]) continue;
+        cols.push(c); d1[row + c] = 1; d2[row - c + n] = 1; out[row] = c;
+        if (place(row + 1)) return true;
+        cols.pop(); delete d1[row + c]; delete d2[row - c + n];
+      }
+      return false;
+    }
+
+    return place(0) ? out : null;
+  }
+
+  function range(k) {
+    var a = [];
+    for (var i = 0; i < k; i++) a.push(i);
+    return a;
+  }
+
+  document.getElementById("hint").addEventListener("click", function () {
+    var sol = solve();
+    if (!sol) {
+      noteEl.textContent = "Подсказка не сработает, пока двое бьют друг друга или стоят в одной строке: снимите лишних.";
+      render("Отсюда решения нет — снимите пару ферзей");
+      return;
+    }
+    var occupied = new Set(queens.map(function (k) { return Math.floor(k / n); }));
+    for (var r = 0; r < n; r++) {
+      if (!occupied.has(r)) {
+        queens.push(key(r, sol[r]));
+        noteEl.textContent = "Один ферзь добавлен. Дальше можно и самому — правило одно: не бить.";
+        render("Один ферзь добавлен — дальше сами");
+        return;
+      }
+    }
+    render();
+  });
+
+  document.getElementById("reset").addEventListener("click", function () {
+    queens = [];
+    noteEl.textContent = DEFAULT_NOTE;
+    render("Чистая доска");
+  });
+
+  buildBoard();
+  buildSizeChips();
+  render();
+})();
+</script>
+</body>
+</html>
